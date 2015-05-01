@@ -13,12 +13,9 @@ import scala.collection.JavaConverters._
 
 class OrientDbGraphTest extends FunSuite with BeforeAndAfter {
 
-  // hopefully we don't need to define too many of these implicit conversions...
   implicit class OrientGiraffe(graph: OrientGraph) {
-    // apparently you're supposed to always create a vertex as null, then mutate it afterwards. that is dumb.
+    // default vertex construtor
     def addVertex() = graph.addVertex(null, List.empty[Object].asJava)
-    //def addVertex(iClassName: String) = graph.addVertex(iClassName, List.empty[Object].asJava)
-    //def createKeyIndex(key: String) = graph.createKeyIndex(key, classOf[Vertex], List.empty[Parameter].asJava)
   }
 
   implicit class Vortex(vertex: Vertex) {
@@ -74,38 +71,20 @@ class OrientDbGraphTest extends FunSuite with BeforeAndAfter {
     alice.setProperties(Map("age" -> 20, "city" -> "Boston").asJava)
     graph.commit()
 
-    // create an index for name lookup (currently doesn't work)
-    //graph.createKeyIndex("name")
-
     // print props for a given vertex
-    //graph.getVertices("name", "Alice").head.printProps()
+    graph.getVertices("name", "Alice").head.printProps()
 
     // print single prop for all vertices
-    //graph.getVertices.foreach(v => println(v.getProperty("name")))
+    graph.getVertices.foreach(v => println(v.getProperty("name")))
 
     // traverse all connections in graph (using * syntax)
-    //graph.traverse().target(alice).field("*").execute().foreach(println)
+    graph.traverse().target(alice).field("*").execute().foreach(println)
 
     // traverse specific things
-    //graph.traverse().target(charles).fields("in_knows", "out_knows").execute().foreach(println)
-    //graph.traverse().target(charles).fields("out_likes").execute().foreach(println)
+    graph.traverse().target(charles).fields("in_knows", "out_knows").execute().foreach(println)
+    graph.traverse().target(charles).fields("out_likes").execute().foreach(println)
     graph.getVertices("name", "Charles").head.getEdges(Direction.OUT, "likes").foreach(_.setProperty("foo",true))
     graph.getEdges.foreach(_.printProps())
-  }
-
-  ignore("little") {
-    val alice = graph.addVertex("class:Individual", Map.empty[String,Object].asJava)
-    alice.setProperties(Map("name" -> "Alice", "age" -> 20).asJava)
-
-    val aliceTumor = graph.addVertex("class:Sample", Map.empty[String,Object].asJava)
-    aliceTumor.setProperties(Map("type" -> "tumor", "tissue" -> "lung", "vaultID" -> 101).asJava)
-    aliceTumor.addEdge("ComesFrom", alice)
-
-    val aliceNormal = graph.addVertex("class:Sample", Map.empty[String,Object].asJava)
-    aliceNormal.setProperties(Map("type" -> "normal", "tissue" -> "lung", "vaultID" -> 100).asJava)
-    aliceNormal.addEdge("ComesFrom", alice)
-
-    graph.commit()
   }
 
   ignore("import_from_model") {
@@ -129,26 +108,14 @@ class OrientDbGraphTest extends FunSuite with BeforeAndAfter {
       graph.declareIntent(new OIntentMassiveInsert)
       GraphGenerator.addWorkspace("BigWorkspace", graph, 100)
       graph.declareIntent(null)
+      graph.commit()
     }
 
-    timeIt("Get all tumor samples") {
-      val tumors = graph.getVertices("Sample.type", "Tumor")
-      println("Saw " + tumors.size +" tumor samples")
+    timeIt("Return the whole workspace") {
+      graph.getRawGraph // what is this doing?
     }
 
-    val sampleSet = graph.getVerticesOfClass("SampleSet").head
-
-    timeIt("Get all samples in a sample set") {
-      val edges = sampleSet.getEdges(Direction.OUT, "contains")
-      val samples = edges.map(e => e.getVertex(Direction.OUT))
-      println(sampleSet.getProperty[String]("name") + " has " + samples.size + " samples")
-    }
-
-    timeIt("Get all samples in a sample set with Gremlin") {
-      val pipeline: GremlinPipeline[Vertex, Vertex] = new GremlinPipeline
-      val samples = pipeline.start(sampleSet).out("contains").toList
-      println(sampleSet.getProperty[String]("name") + " has " + samples.size + " samples")
-    }
+    runGeneralTests(graph)
   }
 
   ignore("many_workspaces") {
@@ -156,11 +123,11 @@ class OrientDbGraphTest extends FunSuite with BeforeAndAfter {
       graph.declareIntent(new OIntentMassiveInsert)
       for (i <- 0 to 20) GraphGenerator.addWorkspace("SmallWorkspace"+i, graph, 5)
       graph.declareIntent(null)
+      graph.commit()
     }
 
     timeIt("Get workspace names") {
       val workspaceNames = graph.getVerticesOfClass("Workspace").map(_.getProperty[String]("name"))
-      //println(workspaceNames.mkString(", "))
     }
 
     timeIt("Get all workspaces containing specific sample") {
@@ -171,6 +138,29 @@ class OrientDbGraphTest extends FunSuite with BeforeAndAfter {
         new GremlinPipeline[Vertex, Vertex].start(w).out("inWorkspace").out("contains").toList.filter(_.getProperty("vaultID") == vaultID).size > 0
       )
       println(workspaces.size + " workspaces have sample with Vault ID " + vaultID)
+    }
+
+    runGeneralTests(graph)
+  }
+
+  def runGeneralTests(graph: OrientGraph) = {
+    timeIt("Get all tumor samples") {
+      val tumors = graph.getVertices("Sample.type", "Tumor")
+      println("Saw " + tumors.size +" tumor samples")
+    }
+
+    timeIt("Get all samples in a sample set, without Gremlin") {
+      val sampleSet = graph.getVerticesOfClass("SampleSet").head
+      val edges = sampleSet.getEdges(Direction.OUT, "contains")
+      val samples = edges.map(e => e.getVertex(Direction.OUT))
+      println(sampleSet.getProperty[String]("name") + " has " + samples.size + " samples")
+    }
+
+    timeIt("Get all samples in a sample set, with Gremlin") {
+      val sampleSet = graph.getVerticesOfClass("SampleSet").head
+      val pipeline: GremlinPipeline[Vertex, Vertex] = new GremlinPipeline
+      val samples = pipeline.start(sampleSet).out("contains").toList
+      println(sampleSet.getProperty[String]("name") + " has " + samples.size + " samples")
     }
 
     timeIt("Update, insert, remove some fields") {
@@ -184,11 +174,19 @@ class OrientDbGraphTest extends FunSuite with BeforeAndAfter {
       sample.printProps()
     }
 
+    timeIt("Add a sample to an existing sample set") {
+      val sampleSet = graph.getVerticesOfClass("SampleSet").head
+      val sample = GraphGenerator.addSample("shinyNewSample", graph)
+      graph.addEdge("class:contains", sampleSet, sample, "contains")
+      graph.commit()
+    }
+
     timeIt("Remove a sample set, while retaining samples") {
       // TODO in the current implementation, the workspace root node only points to sample sets, but not individual samples,
       // TODO so this will leave a bunch of disconnected nodes
       val sampleSet = graph.getVerticesOfClass("SampleSet").head
       sampleSet.remove()
+      graph.commit()
       println("Removed " + sampleSet.getProperty("name"))
       println("Head is now at " + graph.getVerticesOfClass("SampleSet").head.getProperty("name"))
     }
@@ -198,6 +196,7 @@ class OrientDbGraphTest extends FunSuite with BeforeAndAfter {
       val samples = new GremlinPipeline[Vertex, Vertex].start(sampleSet).out("contains").toList
       sampleSet.remove()
       samples.foreach(_.remove)
+      graph.commit()
       println("Removed " + sampleSet.getProperty("name") + " and its " + samples.size + " samples")
     }
   }

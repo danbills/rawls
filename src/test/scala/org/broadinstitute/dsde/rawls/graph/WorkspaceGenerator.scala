@@ -106,9 +106,6 @@ object WorkspaceGenerator {
   object GraphGenerator {
     val rand = new Random
 
-    val minSampleSetSize = 4000
-    val maxSampleSetSize = 6000
-
     val minStrLen = 3
     val maxStrLen = 10
 
@@ -116,6 +113,7 @@ object WorkspaceGenerator {
     val maxSeqLen = 10
 
     val vaultSize = 10000
+    val samplesPerSet = 5000
 
     def generateAnalysisType = {
       val analyses = List("BWA", "Picard", "GATK")
@@ -162,8 +160,7 @@ object WorkspaceGenerator {
       val sampleSet = graph.addVertex("class:SampleSet", "name", name)
       sampleSet.setProperty("type", generateString)
       graph.commit()
-      val size = minSampleSetSize + rand.nextInt(maxSampleSetSize - minSampleSetSize)
-      val samples = for (i <- 0 to size) {
+      val samples = for (i <- 0 to samplesPerSet) {
         val sample = addSample(name+"_sample"+i, graph)
         graph.addEdge("class:contains", sampleSet, sample, "contains")
         graph.commit()
