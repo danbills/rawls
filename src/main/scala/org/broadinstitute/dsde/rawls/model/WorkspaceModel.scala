@@ -53,10 +53,12 @@ case class AttributeReference(val entityType: String, val entityName: String) ex
   }
 }
 
-
+/**
+ * Note: the order in which implicits are declared here matters. It should proceed from the ground up,
+ * i.e. start with the most nested type (Attribute) and work backwards to the overall Workspace.
+ */
 object WorkspaceJsonSupport extends DefaultJsonProtocol {
   implicit object AttributeFormat extends RootJsonFormat[Attribute] {
-
     override def write(obj: Attribute): JsValue = obj match {
       case AttributeBoolean(b) => JsBoolean(b)
       case AttributeNumber(n) => JsNumber(n)
@@ -91,6 +93,37 @@ object WorkspaceJsonSupport extends DefaultJsonProtocol {
     override def read(json: JsValue) : DateTime = json match {
       case JsString(s) => parserISO.parseDateTime(s)
       case _ => throw new DeserializationException("only string supported")
+    }
+  }
+
+  /**
+   * Optional format for serializing entity maps into arrays (and deserializing arrays back into maps).
+   *
+   * Instead of this:
+   *
+   *   'samples': {
+   *     'sample1': {'name': 'sample1', ...},
+   *     'sample2': {'name': 'sample2', ...}
+   *   }
+   *
+   * the JSON will look like this:
+   *
+   *   'samples': [
+   *     {'name': 'sample1', ...},
+   *     {'name': 'sample2', ...}
+   *   ]
+   *
+   * without needing to change the underlying class structure.
+   *
+   */
+  implicit object EntityMapFormat extends RootJsonFormat[Map[String, Entity]] {
+    override def write(obj: Map[String, Entity]): JsValue = {
+      JsArray(obj.values.map(_.toJson).toVector)
+    }
+
+    override def read(json: JsValue): Map[String, Entity] = json match {
+      case JsArray(a) => Map(a.map(EntityFormat.read(_)).map(e => e.name -> e):_*)
+      case _ => throw new DeserializationException("unexpected json type")
     }
   }
 
