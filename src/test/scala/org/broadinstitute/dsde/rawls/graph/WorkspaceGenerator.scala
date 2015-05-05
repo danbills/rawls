@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.rawls.graph
 
 import java.nio.file.Paths
 
-import com.tinkerpop.blueprints.impls.orient.OrientGraph
+import com.tinkerpop.blueprints.impls.orient.{OrientBaseGraph, OrientGraph}
 import org.broadinstitute.dsde.rawls.dataaccess.{FileSystemWorkspaceDAO, WorkspaceDAO}
 import org.broadinstitute.dsde.rawls.model._
 import org.joda.time.DateTime
@@ -147,35 +147,36 @@ object WorkspaceGenerator {
       gen.toSeq
     }
 
-    def addSample(name: String, graph: OrientGraph) = {
+    def addSample(name: String, graph: OrientBaseGraph) = {
       val sample = graph.addVertex("class:Sample", "name", name)
       sample.setProperty("vaultID", generateVaultID)
       sample.setProperty("type", generateSampleType)
       sample.setProperty("annotations", generateAnyList.toString)
-      graph.commit()
+      //graph.commit()
       sample
     }
 
-    def addSampleSet(name: String, graph: OrientGraph) = {
+    def addSampleSet(name: String, graph: OrientBaseGraph) = {
       val sampleSet = graph.addVertex("class:SampleSet", "name", name)
       sampleSet.setProperty("type", generateString)
-      graph.commit()
+      //graph.commit()
       val samples = for (i <- 0 to samplesPerSet) {
         val sample = addSample(name+"_sample"+i, graph)
-        graph.addEdge("class:contains", sampleSet, sample, "contains")
-        graph.commit()
+        //graph.addEdge("class:contains", sampleSet, sample, "contains")
+        sampleSet.addEdge("contains", sample)
+        //graph.commit()
       }
       sampleSet
     }
 
-    def addWorkspace(name: String, graph: OrientGraph, numSampleSets: Int) = {
-      val workspace = graph.addVertex("class:Workspace", "name", name)
+    def addWorkspace(name: String, graph: OrientBaseGraph, numSampleSets: Int) = {
+      //val workspace = graph.addVertex("class:Workspace", "name", name)
       for (i <- 0 to numSampleSets) {
         val sampleSet = addSampleSet("sampleSet"+i, graph)
-        graph.addEdge("class:inWorkspace", workspace, sampleSet, "inWorkspace")
-        graph.commit()
+        //graph.addEdge("class:inWorkspace", workspace, sampleSet, "inWorkspace")
+        graph.commit() // seems to be fastest if we commit once per sample set
       }
-      workspace
+      //workspace
     }
   }
 

@@ -1,7 +1,8 @@
 package org.broadinstitute.dsde.rawls.graph
 
+import com.orientechnologies.orient.core.config.OGlobalConfiguration
 import com.orientechnologies.orient.core.intent.OIntentMassiveInsert
-import com.tinkerpop.blueprints.impls.orient.OrientGraph
+import com.tinkerpop.blueprints.impls.orient.{OrientBaseGraph, OrientGraphNoTx, OrientVertex, OrientGraph}
 import com.tinkerpop.blueprints.{Direction, Edge, Vertex}
 import com.tinkerpop.gremlin.java.GremlinPipeline
 import org.broadinstitute.dsde.rawls.Timer._
@@ -32,7 +33,7 @@ class OrientDbGraphTest extends FunSuite with BeforeAndAfter {
     }
   }
 
-  var graph: OrientGraph = _
+  var graph: OrientBaseGraph = _
 
   before {
     //graph = new OrientGraph("memory:testdb")
@@ -40,12 +41,21 @@ class OrientDbGraphTest extends FunSuite with BeforeAndAfter {
     val dbName = "test_"+(System.currentTimeMillis())
     // DB needs to be in certain directory for UI to see it
     // TODO: put this in test config or something
-    graph = new OrientGraph("plocal:/usr/local/orientdb/orientdb-community-2.0.8/databases/"+dbName)
+    timeIt("startup") {
+      //OGlobalConfiguration.USE_WAL.setValue(false) // transactions not supported in this mode.
+      graph = new OrientGraph("plocal:/usr/local/orientdb/orientdb-community-2.0.8/databases/"+dbName)
+      //graph = new OrientGraphNoTx("plocal:/usr/local/orientdb/orientdb-community-2.0.8/databases/"+dbName) // slows things down considerably
+      graph.setUseLightweightEdges(true) // seems to be faster
+      graph.getRawGraph.setValidationEnabled(false) // is this sketchy?
+      Unit
+    }
     println("----------------Local DB running at "+dbName+"----------------")
   }
 
   after {
-    graph.shutdown
+    timeIt("shutdown") {
+      graph.shutdown
+    }
   }
 
   ignore("basic") {
@@ -103,16 +113,12 @@ class OrientDbGraphTest extends FunSuite with BeforeAndAfter {
     })
   }
 
-  ignore("big_workspace") {
+  test("big_workspace") {
     timeIt("Create big workspace") {
       graph.declareIntent(new OIntentMassiveInsert)
       GraphGenerator.addWorkspace("BigWorkspace", graph, 100)
       graph.declareIntent(null)
       graph.commit()
-    }
-
-    timeIt("Return the whole workspace") {
-      graph.getRawGraph // what is this doing?
     }
 
     runGeneralTests(graph)
@@ -137,16 +143,17 @@ class OrientDbGraphTest extends FunSuite with BeforeAndAfter {
       val workspaces = graph.getVerticesOfClass("Workspace").filter(w =>
         new GremlinPipeline[Vertex, Vertex].start(w).out("inWorkspace").out("contains").toList.filter(_.getProperty("vaultID") == vaultID).size > 0
       )
-      println(workspaces.size + " workspaces have sample with Vault ID " + vaultID)
+      //println(workspaces.size + " workspaces have sample with Vault ID " + vaultID)
     }
 
     runGeneralTests(graph)
   }
 
-  def runGeneralTests(graph: OrientGraph) = {
+  def runGeneralTests(graph: OrientBaseGraph) = {
     timeIt("Get all tumor samples") {
       val tumors = graph.getVertices("Sample.type", "Tumor")
       println("Saw " + tumors.size +" tumor samples")
+      tumors.size
     }
 
     timeIt("Get all samples in a sample set, without Gremlin") {
@@ -166,12 +173,10 @@ class OrientDbGraphTest extends FunSuite with BeforeAndAfter {
     timeIt("Update, insert, remove some fields") {
       val sample = graph.getVertices("Sample.type", "Tumor").head
       sample.setProperty("type", "Normal")
-      graph.commit()
       sample.setProperty("blacklisted", true)
-      graph.commit()
       sample.removeProperty("blacklisted")
-      graph.commit()
       sample.printProps()
+      graph.commit()
     }
 
     timeIt("Add a sample to an existing sample set") {
