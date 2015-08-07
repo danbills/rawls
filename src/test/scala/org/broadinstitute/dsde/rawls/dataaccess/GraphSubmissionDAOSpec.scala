@@ -30,13 +30,13 @@ class GraphSubmissionDAOSpec extends FlatSpec with Matchers with OrientDbTestFix
 //      dao.save(workspace.namespace,workspace.name,testData.submission1,txn)
       assertResult(Some(testData.submission1)) {
         dao.get(workspace.namespace,workspace.name,testData.submission1.submissionId,txn) }
-      assertResult(Seq(testData.submission1, testData.submission2)) {
+      assertResult(Seq(testData.submissionTerminateTest, testData.submission1, testData.submission2)) {
         dao.list(workspace.namespace,workspace.name,txn).toSeq
       }
       assert(dao.delete(workspace.namespace,workspace.name,testData.submission1.submissionId,txn))
       assertResult(None) {
         dao.get(workspace.namespace,workspace.name,testData.submission1.submissionId,txn) }
-      assertResult(1) {
+      assertResult(2) {
         dao.list(workspace.namespace,workspace.name,txn).size
       }
     }
@@ -48,15 +48,15 @@ class GraphSubmissionDAOSpec extends FlatSpec with Matchers with OrientDbTestFix
         dao.get(workspace.namespace,workspace.name,testData.submission1.submissionId,txn) }
       assertResult(Some(testData.submission2)) {
         dao.get(workspace.namespace,workspace.name,testData.submission2.submissionId,txn) }
-      assertResult(2) {
+      assertResult(3) {
         dao.list(workspace.namespace,workspace.name,txn).size
       }
       assert(dao.delete(workspace.namespace,workspace.name,testData.submission1.submissionId,txn))
-      assertResult(1) {
+      assertResult(2) {
         dao.list(workspace.namespace,workspace.name,txn).size
       }
       assert(dao.delete(workspace.namespace,workspace.name,testData.submission2.submissionId,txn))
-      assertResult(0) {
+      assertResult(1) {
         dao.list(workspace.namespace,workspace.name,txn).size
       }
     }
