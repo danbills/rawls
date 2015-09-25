@@ -13,3 +13,8 @@ test-output/
 /.settings/
 /bin/
 *.log
+.librarian/
+.tmp/
+.vagrant/
+Puppetfile.lock
+modules
