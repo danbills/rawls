@@ -7,7 +7,10 @@ import com.tinkerpop.blueprints.impls.orient.OrientConfigurableGraph.THREAD_MODE
 import com.tinkerpop.blueprints.impls.orient.{OrientGraph, OrientGraphFactory}
 import com.typesafe.scalalogging.slf4j.LazyLogging
 
+import scala.concurrent.Future
 import scala.util.{Failure, Success, Try}
+
+import scala.concurrent.ExecutionContext.Implicits.global
 
 object DataSource {
   def apply(url: String, user: String, password: String, minPoolSize: Int, maxPoolSize: Int) = {
@@ -40,12 +43,7 @@ class DataSource(graphFactory: OrientGraphFactory) extends LazyLogging {
       rollbackOnly.set(false)
       graph.begin()
       val result = f(new RawlsTransaction(graph, this))
-      if (rollbackOnly.get) {
-        logger.debug("rolling back transaction marked as rollback only")
-        graph.rollback()
-      } else {
-        graph.commit()
-      }
+      completeTransaction(graph)
       result
     } catch {
       case t: Throwable =>
@@ -56,11 +54,50 @@ class DataSource(graphFactory: OrientGraphFactory) extends LazyLogging {
     }
   }
 
+  def inFutureTransaction[T](f: RawlsTransaction => Future[T]): Future[T] = {
+    val graph = graphFactory.getTx
+    rollbackOnly.set(false)
+    graph.begin()
+    val resultFuture = f(new RawlsTransaction(graph, this))
+
+    resultFuture.transform( { result =>
+      completeTransaction(graph)
+      result
+    }, { throwable =>
+      completeTransactionOnException(graph)
+      throwable
+    })
+  }
+
+  def completeTransaction[T](graph: OrientGraph): Unit = {
+    try {
+      if (rollbackOnly.get) {
+        logger.debug("rolling back transaction marked as rollback only")
+        graph.rollback()
+      } else {
+        graph.commit()
+      }
+    } finally {
+      graph.shutdown()
+    }
+  }
+
+  def completeTransactionOnException(graph: OrientGraph): Unit = {
+    try {
+      graph.rollback()
+    } finally {
+      graph.shutdown()
+    }
+  }
+
   def shutdown() = graphFactory.close()
 }
 
 class RawlsTransaction(graph: OrientGraph, dataSource: DataSource) {
-  def withGraph[T](f: Graph => T) = f(graph)
+  def withGraph[T](f: Graph => T) = {
+    graph.makeActive()
+    f(graph)
+  }
 
   /**
    * Allows code running with a connection to rollback the transaction without throwing an exception.

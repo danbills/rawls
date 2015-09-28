@@ -5,6 +5,8 @@ import org.broadinstitute.dsde.rawls.model.WorkspaceAccessLevel.WorkspaceAccessL
 import WorkspaceACLJsonSupport._
 import spray.json._
 
+import scala.concurrent.Future
+
 object MockGoogleCloudStorageDAO extends GoogleCloudStorageDAO {
 
   val mockPermissions: Map[String, WorkspaceAccessLevel] = Map(
@@ -22,29 +24,25 @@ object MockGoogleCloudStorageDAO extends GoogleCloudStorageDAO {
     }
   }
 
-  override def createBucket(userInfo: UserInfo, projectId: String, workspaceId: String, workspaceName: WorkspaceName): Unit = {}
+  override def createBucket(userInfo: UserInfo, projectId: String, workspaceId: String, workspaceName: WorkspaceName): Future[Unit] = Future.successful(Unit)
 
-  override def deleteBucket(userInfo: UserInfo, workspaceId: String): Unit = {}
+  override def deleteBucket(userInfo: UserInfo, workspaceId: String) = Future.successful(Unit)
 
-  override def getACL(workspaceId: String): WorkspaceACL = {
-    WorkspaceACL(mockPermissions)
-  }
+  override def getACL(workspaceId: String) = Future.successful(WorkspaceACL(mockPermissions))
 
-  override def updateACL(workspaceId: String, aclUpdates: Seq[WorkspaceACLUpdate]) = Map.empty
+  override def updateACL(workspaceId: String, aclUpdates: Seq[WorkspaceACLUpdate]) = Future.successful(Map.empty)
 
-  override def getOwners(workspaceId: String): Seq[String] = mockPermissions.filter(_._2 == WorkspaceAccessLevel.Owner).keys.toSeq
+  override def getOwners(workspaceId: String) = Future.successful(mockPermissions.filter(_._2 == WorkspaceAccessLevel.Owner).keys.toSeq)
 
-  override def getMaximumAccessLevel(userId: String, workspaceId: String): WorkspaceAccessLevel = {
-    getAccessLevelOrDieTrying(userId)
-  }
+  override def getMaximumAccessLevel(userId: String, workspaceId: String) = Future.successful(getAccessLevelOrDieTrying(userId))
 
-  override def getWorkspaces(userId: String): Seq[WorkspacePermissionsPair] = {
+  override def getWorkspaces(userId: String) = Future.successful(
     Seq(
       WorkspacePermissionsPair("bucket1", WorkspaceAccessLevel.Owner),
       WorkspacePermissionsPair("bucket2", WorkspaceAccessLevel.Write),
       WorkspacePermissionsPair("bucket3", WorkspaceAccessLevel.Read)
     )
-  }
+  )
 
   override def getBucketName(workspaceId: String) = s"rawls-${workspaceId}"
 }
