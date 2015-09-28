@@ -11,5 +11,5 @@ LOG_LEVEL=${7-"err"}
 for i in `ls ${INPUT_PATH}/*.ctmpl`; do
   output=`basename ${i%%.ctmpl}`
   echo "Rendering ${i} to ${OUT_PATH}/${output};"
-  ${CONSUL_TEMPLATE_PATH}/consul-template -once -config=${CONSUL_CONFIG} -log-level=${LOG_LEVEL} -template=$i:/etc/$output
+  sudo ENVIRONMENT=$ENVIRONMENT VAULT_TOKEN=$VAULT_TOKEN ${CONSUL_TEMPLATE_PATH}/consul-template -once -config=${CONSUL_CONFIG} -log-level=${LOG_LEVEL} -template=$i:${OUT_PATH}/${output}
 done

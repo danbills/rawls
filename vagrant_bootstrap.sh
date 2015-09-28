@@ -1,6 +1,4 @@
 #!/bin/bash
-ENV=$1
-VAULT_TOKEN=$2
 
 sudo yum -y --nogpgcheck localinstall https://yum.puppetlabs.com/puppetlabs-release-el-7.noarch.rpm
 sudo yum -y install rubygems git puppet unzip
@@ -11,4 +9,3 @@ cd /vagrant
 /usr/local/bin/librarian-puppet install --verbose
 
 sudo puppet apply --verbose --modulepath=modules/ default.pp
-
