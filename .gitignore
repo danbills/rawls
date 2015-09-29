@@ -18,3 +18,6 @@ test-output/
 .vagrant/
 Puppetfile.lock
 modules
+server.key.ctmpl
+server.crt.ctmpl
+ca-bundle.crt.ctmpl

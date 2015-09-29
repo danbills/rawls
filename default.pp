@@ -20,3 +20,27 @@ staging::deploy { 'vault.zip':
   target  => '/usr/local/bin/',
   creates => '/usr/local/bin/vault',
 }
+
+#We don't want the ctmpls for ssl certs IN the repo, since we don't want them
+#to be filled in in deployed instances.
+#Create the templates here.
+$local_ssl_server_crt_vault_path="secret/dsde/local/local_broadinsititute_org"
+
+file {'/vagrant/server.crt.ctmpl':
+  content => "{{with \$secret := vault \"${local_ssl_server_crt_vault_path}\" }}{{\$secret.Data.server_crt}}{{end}}",
+  owner   => 'root',
+  group   => 'root',
+  mode    => '0444',
+}
+file {'/vagrant/server.key.ctmpl':
+  content => "{{with \$secret := vault \"${local_ssl_server_crt_vault_path}\" }}{{\$secret.Data.server_key}}{{end}}",
+  owner   => 'root',
+  group   => 'root',
+  mode    => '0400',
+}
+file {'/vagrant/ca-bundle.crt.ctmpl':
+  content => "{{with \$secret := vault \"${local_ssl_server_crt_vault_path}\" }}{{\$secret.Data.ca_bundle_crt}}{{end}}",
+  owner   => 'root',
+  group   => 'root',
+  mode    => '0444',
+}

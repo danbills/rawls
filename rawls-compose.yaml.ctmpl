@@ -1,8 +1,4 @@
-{{with $environment := env "ENVIRONMENT"}}
-{{$keyname := printf "secret/dsde/%s/rawls/rawls-compose.yml" $environment}}
-{{with vault $keyname}}
-
-app:
+{{with $environment := env "ENVIRONMENT"}}{{$keyname := printf "secret/dsde/%s/rawls/rawls-compose.yml" $environment}}{{with vault $keyname}}app:
   image: {{.Data.app_image}}
   dns:
     - 172.17.42.1
@@ -38,7 +34,4 @@ proxy:
     PROXY_PATH2: ^/(workspaces|submissions|methodconfigs|entities)
     PROXY_URL: http://app:8080/
     PROXY_URL2: http://app:8080/
-    SERVER_NAME: {{.Data.env_server_name}}
-
-{{end}}
-{{end}}
+    SERVER_NAME: {{.Data.env_server_name}}{{end}}{{end}}

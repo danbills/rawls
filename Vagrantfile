@@ -12,11 +12,11 @@ Vagrant.configure(2) do |config|
 
   #Port Forwards
   #config.vm.network "forwarded_port", guest: 80, host: 8080
-  #config.vm.network "forwarded_port", guest: 443, host: 8443
+  config.vm.network "forwarded_port", guest: 443, host: 8443
   #config.vm.network "forwarded_port", guest: 8080, host: 8880
   #config.vm.network "forwarded_port", guest: 8081, host: 8881
   #Simple hostname
-  config.vm.hostname = "localdev"
+  config.vm.hostname = "local.broadinstitute.org"
 
   #Sync folder
   config.vm.synced_folder ".", "/vagrant", type: "virtualbox"
