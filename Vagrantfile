@@ -4,17 +4,22 @@ Vagrant.configure(2) do |config|
   #config.vm.box = "centos/7"
   #centos/7 doesn't have virtual box tools
   config.vm.box = "landregistry/centos"
+
   #Config vm "hardware"
   config.vm.provider "virtualbox" do |v|
     v.memory = 1024
     v.cpus = 2
   end
 
+  #static, private IP address
+  config.vm.network "private_network", ip: "192.168.50.4"
+
   #Port Forwards
   #config.vm.network "forwarded_port", guest: 80, host: 8080
   config.vm.network "forwarded_port", guest: 443, host: 8443
   #config.vm.network "forwarded_port", guest: 8080, host: 8880
   #config.vm.network "forwarded_port", guest: 8081, host: 8881
+
   #Simple hostname
   config.vm.hostname = "local.broadinstitute.org"
 
