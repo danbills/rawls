@@ -3,6 +3,9 @@
 sudo yum -y --nogpgcheck localinstall https://yum.puppetlabs.com/puppetlabs-release-el-7.noarch.rpm
 sudo yum -y install rubygems git puppet unzip
 gem install librarian-puppet
+#add github key
+
+sudo sh -c 'ssh-keyscan github.com >> /etc/ssh/ssh_known_hosts '
 
 cd /vagrant
 

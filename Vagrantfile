@@ -23,6 +23,9 @@ Vagrant.configure(2) do |config|
   #Simple hostname
   config.vm.hostname = "local.broadinstitute.org"
 
+  #Forward agent for ssh keys etc (github access, etc)
+  config.ssh.forward_agent = true
+
   #Sync folder
   config.vm.synced_folder ".", "/vagrant", type: "virtualbox"
 
