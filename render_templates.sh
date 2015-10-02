@@ -4,7 +4,7 @@ ENVIRONMENT=$1
 VAULT_TOKEN=$2
 INPUT_PATH=${3-"/vagrant"}
 CONSUL_TEMPLATE_PATH=${4-"/usr/local/bin"}
-CONSUL_CONFIG=${5-"/etc/consul-template/config.json"}
+CONSUL_CONFIG=${5-"/etc/consul-template/config/config.json"}
 OUT_PATH=${6-"/etc"}
 LOG_LEVEL=${7-"err"}
 
