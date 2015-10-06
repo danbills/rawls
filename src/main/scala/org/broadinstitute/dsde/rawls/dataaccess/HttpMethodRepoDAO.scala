@@ -48,7 +48,7 @@ class HttpMethodRepoDAO( methodRepoServiceURL: String)( implicit val system: Act
     }
   }
 
-  override def postMethodConfig[U](namespace: String, name: String, methodConfiguration: MethodConfiguration, userInfo: UserInfo): Future[AgoraEntity] = {
+  override def postMethodConfig(namespace: String, name: String, methodConfiguration: MethodConfiguration, userInfo: UserInfo): Future[AgoraEntity] = {
     val agoraEntity = AgoraEntity(
       namespace = Option(namespace),
       name = Option(name),

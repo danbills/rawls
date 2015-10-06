@@ -3,6 +3,7 @@ package org.broadinstitute.dsde.rawls.dataaccess
 import akka.actor.ActorSystem
 import org.broadinstitute.dsde.rawls.model._
 import org.broadinstitute.dsde.rawls.model.ExecutionJsonSupport._
+import org.broadinstitute.dsde.rawls.util.FutureSupport
 import scala.concurrent.{Future, Await}
 import scala.concurrent.duration.Duration
 import spray.client.pipelining._
@@ -14,7 +15,7 @@ import scala.util.{Failure, Success, Try}
 /**
  * @author tsharpe
  */
-class HttpExecutionServiceDAO( executionServiceURL: String )( implicit val system: ActorSystem ) extends ExecutionServiceDAO with DsdeHttpDAO with Retry {
+class HttpExecutionServiceDAO( executionServiceURL: String )( implicit val system: ActorSystem ) extends ExecutionServiceDAO with DsdeHttpDAO with Retry with FutureSupport {
 
   override def submitWorkflow(wdl: String, inputs: String, options: Option[String], userInfo: UserInfo): Future[ExecutionServiceStatus] = {
     // TODO: how to get the version?
@@ -66,7 +67,7 @@ class HttpExecutionServiceDAO( executionServiceURL: String )( implicit val syste
     val url = executionServiceURL + s"/workflows/v1/${id}/abort"
     import system.dispatcher
     val pipeline = addAuthHeader(userInfo) ~> sendReceive ~> unmarshal[ExecutionServiceStatus]
-    retry(when500) { () => pipeline(Post(url)).map(Success(_)).recover { case t => Failure(t) } }
+    retry(when500) { () => toFutureTry(pipeline(Post(url))) }
   }
 
   private def when500( throwable: Throwable ): Boolean = {

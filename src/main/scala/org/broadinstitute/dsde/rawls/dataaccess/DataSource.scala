@@ -35,15 +35,13 @@ object DataSource {
 }
 
 class DataSource(graphFactory: OrientGraphFactory) extends LazyLogging {
-  val rollbackOnly = new AtomicBoolean(false)
-
   def inTransaction[T](f: RawlsTransaction => T): T = {
     val graph = graphFactory.getTx
     try {
-      rollbackOnly.set(false)
       graph.begin()
-      val result = f(new RawlsTransaction(graph, this))
-      completeTransaction(graph)
+      val txn: RawlsTransaction = new RawlsTransaction(graph, this)
+      val result = f(txn)
+      completeTransaction(txn)
       result
     } catch {
       case t: Throwable =>
@@ -54,14 +52,19 @@ class DataSource(graphFactory: OrientGraphFactory) extends LazyLogging {
     }
   }
 
+  /**
+   * This function completes or rolls back the transaction in a future at the end of the future resulting from f
+   * @param f
+   * @tparam T
+   */
   def inFutureTransaction[T](f: RawlsTransaction => Future[T]): Future[T] = {
     val graph = graphFactory.getTx
-    rollbackOnly.set(false)
     graph.begin()
-    val resultFuture = f(new RawlsTransaction(graph, this))
+    val txn: RawlsTransaction = new RawlsTransaction(graph, this)
+    val resultFuture = f(txn)
 
     resultFuture.transform( { result =>
-      completeTransaction(graph)
+      completeTransaction(txn)
       result
     }, { throwable =>
       completeTransactionOnException(graph)
@@ -69,16 +72,16 @@ class DataSource(graphFactory: OrientGraphFactory) extends LazyLogging {
     })
   }
 
-  def completeTransaction[T](graph: OrientGraph): Unit = {
+  def completeTransaction[T](rawlsTransaction: RawlsTransaction): Unit = {
     try {
-      if (rollbackOnly.get) {
+      if (rawlsTransaction.isRollbackOnly) {
         logger.debug("rolling back transaction marked as rollback only")
-        graph.rollback()
+        rawlsTransaction.graph.rollback()
       } else {
-        graph.commit()
+        rawlsTransaction.graph.commit()
       }
     } finally {
-      graph.shutdown()
+      rawlsTransaction.graph.shutdown()
     }
   }
 
@@ -93,8 +96,11 @@ class DataSource(graphFactory: OrientGraphFactory) extends LazyLogging {
   def shutdown() = graphFactory.close()
 }
 
-class RawlsTransaction(graph: OrientGraph, dataSource: DataSource) {
+class RawlsTransaction(val graph: OrientGraph, dataSource: DataSource) {
+  private val rollbackOnly = new AtomicBoolean(false)
+
   def withGraph[T](f: Graph => T) = {
+    // because transactions are spanning threads we need to make sure the graph is active
     graph.makeActive()
     f(graph)
   }
@@ -104,6 +110,8 @@ class RawlsTransaction(graph: OrientGraph, dataSource: DataSource) {
    * All following modifications will be rolled back as well.
    */
   def setRollbackOnly(): Unit = {
-    dataSource.rollbackOnly.set(true)
+    rollbackOnly.set(true)
   }
+
+  def isRollbackOnly = rollbackOnly.get()
 }

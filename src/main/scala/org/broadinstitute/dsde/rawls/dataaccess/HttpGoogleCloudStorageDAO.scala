@@ -3,6 +3,7 @@ package org.broadinstitute.dsde.rawls.dataaccess
 import java.io.StringReader
 
 import akka.actor.{ActorSystem, ActorContext}
+import org.broadinstitute.dsde.rawls.util.FutureSupport
 
 import scala.annotation.tailrec
 import scala.collection.JavaConversions._
@@ -41,7 +42,7 @@ class HttpGoogleCloudStorageDAO(
   appsDomain: String,
   groupsPrefix: String,
   appName: String,
-  deletedBucketCheckSeconds: Int)( implicit val system: ActorSystem ) extends GoogleCloudStorageDAO with Retry {
+  deletedBucketCheckSeconds: Int)( implicit val system: ActorSystem ) extends GoogleCloudStorageDAO with Retry with FutureSupport {
 
   val groupMemberRole = "MEMBER" // the Google Group role corresponding to a member (note that this is distinct from the GCS roles defined in WorkspaceAccessLevel)
 
@@ -60,6 +61,7 @@ class HttpGoogleCloudStorageDAO(
     val directory = getGroupDirectory
     val groups = directory.groups
 
+    // tries to delete all groups expected to have been created whether they actually were or not
     def rollbackGroups(t: Throwable): Throwable = {
       Future.traverse(groupAccessLevelsAscending) { accessLevel =>
         Future {
@@ -72,14 +74,25 @@ class HttpGoogleCloudStorageDAO(
       t
     }
 
-    def insertGroups(workspaceName: WorkspaceName, bucketName: String): Future[Seq[Group]] = {
+    def insertGroups(workspaceName: WorkspaceName, bucketName: String): Future[Seq[Try[Group]]] = {
       Future.traverse(groupAccessLevelsAscending) { accessLevel =>
-        retry(when500) {
+        toFutureTry(retry(when500) {
           () => Future {
             val inserter = groups.insert(newGroup(bucketName, workspaceName, accessLevel))
             blocking {
               inserter.execute
             }
+          }
+        })
+      }
+    }
+
+    def assertSuccessfulGroupInserts: (Seq[Try[Group]]) => Future[Seq[Group]] = { tryGroups =>
+      Future {
+        tryGroups map {
+          _ match {
+            case Success(g) => g
+            case Failure(t) => throw t
           }
         }
       }
@@ -104,7 +117,7 @@ class HttpGoogleCloudStorageDAO(
           val bucketAcls = groupAccessLevelsAscending.map(ac => newBucketAccessControl(makeGroupEntityString(toGroupId(bucketName, ac)), ac))
           val defaultObjectAcls = groupAccessLevelsAscending.map(ac => {
             // NB: writers have read access to objects -- there is no write access, objects are immutable
-            newObjectAccessControl(makeGroupEntityString(toGroupId(bucketName, ac)), if (ac == WorkspaceAccessLevel.Owner) ac else WorkspaceAccessLevel.Read)
+            newObjectAccessControl(makeGroupEntityString(toGroupId(bucketName, ac)), if (ac == WorkspaceAccessLevel.Owner) WorkspaceAccessLevel.Owner else WorkspaceAccessLevel.Read)
           })
 
           val bucket = new Bucket().setName(bucketName).setAcl(bucketAcls).setDefaultObjectAcl(defaultObjectAcls)
@@ -116,7 +129,7 @@ class HttpGoogleCloudStorageDAO(
       }
     }
 
-    val doItAll = insertGroups(workspaceName, bucketName) flatMap insertOwnerMember flatMap insertBucket
+    val doItAll = insertGroups(workspaceName, bucketName) flatMap assertSuccessfulGroupInserts flatMap insertOwnerMember flatMap insertBucket
     doItAll.transform(f => f, rollbackGroups)
   }
 
@@ -135,7 +148,7 @@ class HttpGoogleCloudStorageDAO(
       val buckets = getStorage(getBucketCredential(userInfo)).buckets
       val deleter = buckets.delete(bucketName)
       retry(when500)(() => Future {
-        deleter.execute
+        blocking { deleter.execute }
       }) recover {
         //Google returns 409 Conflict if the bucket isn't empty.
         case gjre: GoogleJsonResponseException if gjre.getDetails.getCode == 409 =>
@@ -148,7 +161,7 @@ class HttpGoogleCloudStorageDAO(
             .setCondition(new Condition().setAge(0))
           val lifecycle = new Lifecycle().setRule(List(deleteEverythingRule))
           val fetcher = buckets.get(bucketName)
-          val bucketFuture = retry(when500)(() => Future { fetcher.execute })
+          val bucketFuture = retry(when500)(() => Future { blocking { fetcher.execute } })
           bucketFuture.map(bucket => bucket.setLifecycle(lifecycle))
 
           system.scheduler.scheduleOnce(deletedBucketCheckSeconds seconds)(bucketDeleteFn)
@@ -223,7 +236,7 @@ class HttpGoogleCloudStorageDAO(
     //a workspace should always have an owner, but just in case for some reason it doesn't...
     val fetcher = members.list(toGroupId(getBucketName(workspaceId), WorkspaceAccessLevel.Owner))
     val ownersQuery = retry(when500) (() => Future {
-      fetcher.execute
+      blocking { fetcher.execute }
     })
 
     ownersQuery map { queryResults =>
@@ -238,7 +251,7 @@ class HttpGoogleCloudStorageDAO(
     Future.traverse(groupAccessLevelsAscending) { accessLevel =>
       retry(when500) { () =>
         Future {
-          members.get(toGroupId(bucketName, accessLevel), userId).execute()
+          blocking { members.get(toGroupId(bucketName, accessLevel), userId).execute() }
           accessLevel
         }
       } recover {
@@ -253,7 +266,7 @@ class HttpGoogleCloudStorageDAO(
     val directory = getGroupDirectory
     val fetcher = directory.groups().list().setUserKey(userId)
     val groupsQuery = retry(when500)(() => Future {
-      fetcher.execute
+      blocking { fetcher.execute }
     })
 
     groupsQuery map { groupsResult =>
@@ -276,9 +289,7 @@ class HttpGoogleCloudStorageDAO(
     val members = directory.members
     getMaximumAccessLevel(userId, workspaceId) flatMap { currentAccessLevel =>
       if ( currentAccessLevel == targetAccessLevel )
-        Future {
-          None
-        }
+        Future.successful(None)
       else {
         val bucketName = getBucketName(workspaceId)
         val member = new Member().setEmail(userId).setRole(groupMemberRole)
@@ -304,7 +315,7 @@ class HttpGoogleCloudStorageDAO(
         val insertFuture: Future[Option[(String, String)]] = if (targetAccessLevel >= WorkspaceAccessLevel.Read) {
           retry(when500) { () =>
             Future {
-              inserter.execute()
+              blocking { inserter.execute() }
               None
             }
           }
@@ -321,7 +332,7 @@ class HttpGoogleCloudStorageDAO(
               val restoreInserter = members.insert(currentGroupId, member)
               retry(when500) { () =>
                 Future {
-                  restoreInserter.execute
+                  blocking { restoreInserter.execute }
                   simpleFailure
                 } recover {
                   case t => Option((userId, s"Failed to change permissions for $userId. They no longer have any access to the workspace. Please try re-adding them."))

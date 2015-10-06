@@ -48,6 +48,7 @@ trait PerRequest extends Actor {
     case RequestCompleteWithLocation_(response, location, marshaller) => complete(response, HttpHeaders.Location(r.request.uri.copy(path = Uri.Path(location))))(marshaller)
     case ReceiveTimeout => complete(GatewayTimeout)
     case Failure(t) =>
+      // failed Futures will end up in this case
       handleException(t)
       stop(self)
     case x =>
