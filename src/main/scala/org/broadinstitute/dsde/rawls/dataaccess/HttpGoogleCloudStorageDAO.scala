@@ -59,78 +59,60 @@ class HttpGoogleCloudStorageDAO(
   override def createBucket(userInfo: UserInfo, projectId: String, workspaceId: String, workspaceName: WorkspaceName): Future[Unit] = {
     val bucketName = getBucketName(workspaceId)
     val directory = getGroupDirectory
-    val groups = directory.groups
+    val groupsDir = directory.groups
 
-    // tries to delete all groups expected to have been created whether they actually were or not
-    def rollbackGroups(t: Throwable): Throwable = {
-      Future.traverse(groupAccessLevelsAscending) { accessLevel =>
-        Future {
-          val inserter = groups.delete(newGroup(bucketName, workspaceName, accessLevel).getEmail)
-          blocking {
-            inserter.execute
-          }
-        }
-      }
-      t
+    def addOwner(): Future[Unit] = {
+      val ownersGroupId = toGroupId(bucketName, WorkspaceAccessLevel.Owner)
+      val owner = new Member().setEmail(userInfo.userEmail).setRole(groupMemberRole)
+      val inserter = directory.members.insert(ownersGroupId, owner)
+      retryWhen500(() => inserter.execute())
     }
 
-    def insertGroups(workspaceName: WorkspaceName, bucketName: String): Future[Seq[Try[Group]]] = {
-      Future.traverse(groupAccessLevelsAscending) { accessLevel =>
-        toFutureTry(retry(when500) {
-          () => Future {
-            val inserter = groups.insert(newGroup(bucketName, workspaceName, accessLevel))
-            blocking {
-              inserter.execute
-            }
-          }
-        })
+    def makeBucket(): Future[Unit] = {
+      val bucketAcls = groupAccessLevelsAscending map { ac =>
+        newBucketAccessControl(makeGroupEntityString(toGroupId(bucketName, ac)), ac)
       }
+      val defaultObjectAcls = groupAccessLevelsAscending map { ac =>
+        // NB: writers have read access to objects -- there is no write access, objects are immutable
+        val accessLevel = if (ac == WorkspaceAccessLevel.Write) WorkspaceAccessLevel.Read else ac
+        newObjectAccessControl(makeGroupEntityString(toGroupId(bucketName, ac)), accessLevel)
+      }
+      val bucket = new Bucket().setName(bucketName).setAcl(bucketAcls).setDefaultObjectAcl(defaultObjectAcls)
+      val inserter = getStorage(getBucketCredential(userInfo)).buckets.insert(projectId, bucket)
+      retryWhen500(() => inserter.execute())
     }
 
-    def assertSuccessfulGroupInserts: (Seq[Try[Group]]) => Future[Seq[Group]] = { tryGroups =>
-      Future {
-        tryGroups map {
-          _ match {
-            case Success(g) => g
-            case Failure(t) => throw t
-          }
-        }
-      }
+    // this traversal attempts to make a Google group for each access level
+    // the result is a Future[Seq[Try[Group]]], i.e., at some time in the future,
+    //   we'll have a record of a sequence of attempts to make groups.
+    // note that this will always be a successfully completed future, since the failures
+    //   to make a group have been hidden as failed Trys.
+    val groupsFuture = Future.traverse(groupAccessLevelsAscending) { accessLevel =>
+      val inserter = groupsDir.insert(newGroup(bucketName, workspaceName, accessLevel))
+      toFutureTry(retryWhen500(() => inserter.execute()))
     }
 
-    def insertOwnerMember: (Seq[Group]) => Future[Member] = { _ =>
-      retry(when500) {
-        () => Future {
-          val ownersGroupId = toGroupId(bucketName, WorkspaceAccessLevel.Owner)
-          val owner = new Member().setEmail(userInfo.userEmail).setRole(groupMemberRole)
-          val ownerInserter = directory.members.insert(ownersGroupId, owner)
-          blocking {
-            ownerInserter.execute
-          }
-        }
-      }
+    groupsFuture flatMap { groups =>
+      // we've awoken in the future, when all attempts to make groups have completed
+      // let's see how we did
+      if ( !groups.forall(_.isSuccess) ) // if they're not all successful
+        Future.failed(new RawlsException("didn't make the groups")) // fail the whole mess immediately
+      else
+        // so far, so good.  all the groups have been created successfully
+        // we'll attempt to add the current user to the owners group, returning a new future
+        addOwner
+    } flatMap { _ =>
+      // ...some time later...
+      // apparently that attempt to add the user to the owners group went well and here we are again
+      // last thing to do is to create the bucket -- we'll return this Future as the result of the method
+      makeBucket
+    } recover { case throwable =>
+      // just try to get rid of all of the groups we actually did create (sometime in the future), ignoring results
+      for ( groups <- groupsFuture )
+        for ( group <- groups if group.isSuccess )
+          retryWhen500(() => groupsDir.delete(group.get.getEmail))
+      Future.failed(throwable)
     }
-
-    def insertBucket: (Member) => Future[Unit] = { _ =>
-      retry(when500) {
-        () => Future {
-          val bucketAcls = groupAccessLevelsAscending.map(ac => newBucketAccessControl(makeGroupEntityString(toGroupId(bucketName, ac)), ac))
-          val defaultObjectAcls = groupAccessLevelsAscending.map(ac => {
-            // NB: writers have read access to objects -- there is no write access, objects are immutable
-            newObjectAccessControl(makeGroupEntityString(toGroupId(bucketName, ac)), if (ac == WorkspaceAccessLevel.Owner) WorkspaceAccessLevel.Owner else WorkspaceAccessLevel.Read)
-          })
-
-          val bucket = new Bucket().setName(bucketName).setAcl(bucketAcls).setDefaultObjectAcl(defaultObjectAcls)
-          val inserter = getStorage(getBucketCredential(userInfo)).buckets.insert(projectId, bucket)
-          blocking {
-            inserter.execute
-          }
-        }
-      }
-    }
-
-    val doItAll = insertGroups(workspaceName, bucketName) flatMap assertSuccessfulGroupInserts flatMap insertOwnerMember flatMap insertBucket
-    doItAll.transform(f => f, rollbackGroups)
   }
 
   private def newGroup(bucketName: String, workspaceName: WorkspaceName, accessLevel: WorkspaceAccessLevel) =
@@ -283,6 +265,10 @@ class HttpGoogleCloudStorageDAO(
       case gjre: GoogleJsonResponseException => gjre.getDetails.getCode/100 == 5
       case _ => false
     }
+  }
+
+  private def retryWhen500[T](op: () => T): Future[T] = {
+    retry(when500)(() => Future(blocking(op())))
   }
 
   private def updateUserAccess(userId: String, targetAccessLevel: WorkspaceAccessLevel, workspaceId: String, directory: Directory): Future[Option[(String,String)]] = {
