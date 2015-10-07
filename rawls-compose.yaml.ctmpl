@@ -1,13 +1,13 @@
 {{with $environment := env "ENVIRONMENT"}}{{$keyname := printf "secret/dsde/%s/rawls/rawls-compose.yml" $environment}}{{with vault $keyname}}app:
   image: {{.Data.app_image}}
   dns:
-    - 172.17.42.1
+    {{.Data.app_dns}}
   volumes:
     - /etc/localtime:/etc/localtime:ro
     - /etc/rawls.conf:/etc/rawls.conf:ro
     - /var/rawls:/var/rawls:rw
-    - /etc/rawls-service-acct.json:/etc/rawls-service-acct.json:ro
-    - /etc/rawls_service_account.p12:/etc/rawls_service_account.p12:ro
+    - /etc/rawls_service_account.pem:/etc/rawls_service_account.pem:ro
+    {{.Data.app_other_volumes}}
 proxy:
   image: broadinstitute/openidc-proxy:latest
   links:

@@ -4,9 +4,10 @@ Vagrant Environment Howto
 Pre-Vagrant Setup:
 
 * Install VirtualBox
-* Install Vagrant 
+* Install Vagrant
+    e.g. brew cask install vagrant
 * Configure ssh-agent forwarding:
-  Ensure ~/.ssh/config cotnains:
+  Ensure ~/.ssh/config contains:
     ```Host 127.0.0.1
           ForwardAgent yes
     ```
@@ -18,7 +19,8 @@ Pre-Vagrant Setup:
   ```ssh-add ~/.ssh/id_rsa```
 
 * Hostname/IP:
- By default the vagrant instance runs on a host-only network, available on the IP 192.168.50.4. Edit your /etc/hosts to assign this the DNS name "local.broadinstitute.org":
+ By default the vagrant instance runs on a host-only network, available on the IP 192.168.50.4.
+ Edit your /etc/hosts to assign this the DNS name "local.broadinstitute.org":
   ``` 192.168.50.4    local.broadinstitute.org ```
   This is so the SSL certificates created for the local environment remain 'vaild'
 
@@ -29,7 +31,7 @@ Environment Setup:
   ```export ENVIRONMENT="dev"```
   (staging, dev, and local are currently valid)
 
- * Set your vault token
+ * Set your vault token.  You will request this token from devops.
  ```export VAULT_TOKEN="some_token_string"```
 
 Bring up the vagrant instance:

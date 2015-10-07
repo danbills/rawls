@@ -31,7 +31,7 @@ import org.broadinstitute.dsde.rawls.model._
 class HttpGoogleCloudStorageDAO(
   useServiceAccountForBuckets: Boolean,
   clientSecretsJson: String,
-  p12File: String,
+  pemFile: String,
   appsDomain: String,
   groupsPrefix: String,
   appName: String,
@@ -293,7 +293,7 @@ class HttpGoogleCloudStorageDAO(
       .setServiceAccountId(clientSecrets.getDetails.get("client_email").toString)
       .setServiceAccountScopes(directoryScopes)
       .setServiceAccountUser(clientSecrets.getDetails.get("sub_email").toString)
-      .setServiceAccountPrivateKeyFromP12File(new java.io.File(p12File))
+      .setServiceAccountPrivateKeyFromPemFile(new java.io.File(pemFile))
       .build()
   }
 
@@ -303,7 +303,7 @@ class HttpGoogleCloudStorageDAO(
       .setJsonFactory(jsonFactory)
       .setServiceAccountId(clientSecrets.getDetails.get("client_email").toString)
       .setServiceAccountScopes(storageScopes) // grant bucket-creation powers
-      .setServiceAccountPrivateKeyFromP12File(new java.io.File(p12File))
+      .setServiceAccountPrivateKeyFromPemFile(new java.io.File(pemFile))
       .build()
   }
 
