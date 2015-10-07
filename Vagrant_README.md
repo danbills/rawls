@@ -27,11 +27,11 @@ Pre-Vagrant Setup:
 Environment Setup:
  Two environmental variables are needed for the vagrant process to connect to vault correctly:
 
- * Set the environment (used to fetch secrets from vault)
-  ```export ENVIRONMENT="dev"```
+ * in bash: Set the environment (used to fetch secrets from vault)
+  ```export ENVIRONMENT="local"```
   (staging, dev, and local are currently valid)
 
- * Set your vault token.  You will request this token from devops.
+ * in bash: Set your vault token.  You will request this token from devops.
  ```export VAULT_TOKEN="some_token_string"```
 
 Bring up the vagrant instance:
@@ -62,3 +62,6 @@ If for some reason you need to/want to reprovision:
 ``` vagrant provision ```
 
 Port Forwards
+
+
+NOTE: You may have problems accessing the local rawls instance if you are connected via a VPN
