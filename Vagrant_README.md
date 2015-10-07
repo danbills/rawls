@@ -6,7 +6,7 @@ Pre-Vagrant Setup:
 * Install VirtualBox
 * Install Vagrant
     e.g. brew cask install vagrant
-* Configure ssh-agent forwarding:
+* Configure ssh-agent forwarding in order for Puppet to get required modules:
   Ensure ~/.ssh/config contains:
     ```Host 127.0.0.1
           ForwardAgent yes
@@ -15,8 +15,8 @@ Pre-Vagrant Setup:
   Make sure ssh-agent is running:
   ```ssh-agent```
 
-  Add your local ssh key to the agent:
-  ```ssh-add ~/.ssh/id_rsa```
+  Add your local gitssh ssh key to the agent:
+  e.g. ```ssh-add ~/.ssh/id_rsa```
 
 * Hostname/IP:
  By default the vagrant instance runs on a host-only network, available on the IP 192.168.50.4.
@@ -29,7 +29,6 @@ Environment Setup:
 
  * in bash: Set the environment (used to fetch secrets from vault)
   ```export ENVIRONMENT="local"```
-  (staging, dev, and local are currently valid)
 
  * in bash: Set your vault token.  You will request this token from devops.
  ```export VAULT_TOKEN="some_token_string"```
@@ -51,10 +50,15 @@ Login:
 ``` vagrant ssh ```
 You now have a shell inside the instance. The repo you ran this from is live-mirrored/mounted into ```/vagrant``` 
 
+
+While inside the VM:
+
 Docker authentication: 
 If you wish to preform any docker actions that require authentication (push/pulling from private repos, such as openidc-proxy), you must authenticate:
 ``` docker login ```
 
+To start Rawls:
+``` docker-compose -f /etc/rawls-compose.yaml -p rawls up ```
 
 Reprovision:
 
