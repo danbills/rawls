@@ -74,7 +74,3 @@ lazy val rawls = project.in(file("."))
     testOptions in Test ++= Seq(Tests.Filter(s => !isIntegrationTest(s))),
     testOptions in IntegrationTest := Seq(Tests.Filter(s => isIntegrationTest(s)))
   )
-
-val buildSettings = Defaults.defaultSettings ++ Seq(
-  javaOptions += "-Xmx2G"
-)

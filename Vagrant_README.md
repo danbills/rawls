@@ -4,6 +4,7 @@ Vagrant Environment Howto
 Pre-Vagrant Setup:
 
 * Install VirtualBox
+    e.g. brew cask install virtualbox
 * Install Vagrant
     e.g. brew cask install vagrant
 * Configure ssh-agent forwarding in order for Puppet to get required modules:
@@ -19,9 +20,9 @@ Pre-Vagrant Setup:
   e.g. ```ssh-add ~/.ssh/id_rsa```
 
 * Hostname/IP:
- By default the vagrant instance runs on a host-only network, available on the IP 192.168.50.4.
+ By default the vagrant instance runs on a host-only network, available on the IP 10.255.0.10.
  Edit your /etc/hosts to assign this the DNS name "local.broadinstitute.org":
-  ``` 192.168.50.4    local.broadinstitute.org ```
+  ``` 10.255.0.10    local.broadinstitute.org ```
   This is so the SSL certificates created for the local environment remain 'vaild'
 
 Environment Setup:
