@@ -61,7 +61,10 @@ assemblyMergeStrategy in assembly := {
 
 Revolver.settings
 
-Revolver.enableDebugging(port = 5050, suspend = false)
+//Revolver.enableDebugging(port = 5050, suspend = false)
+
+javaOptions in Revolver.reStart ++= Seq("-Xdebug",
+  "-Xrunjdwp:transport=dt_socket,server=y,suspend=n,address=5050")
 
 def isIntegrationTest(name: String) = name contains "integrationtest"
 
