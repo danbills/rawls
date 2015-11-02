@@ -5,6 +5,7 @@ import org.broadinstitute.dsde.rawls.model.WorkspaceAccessLevels.WorkspaceAccess
 import org.broadinstitute.dsde.rawls.model._
 
 import scala.util.{Failure, Try}
+import scala.concurrent.Future
 
 trait AuthDAO {
   def loadUser(ref: RawlsUserRef, txn: RawlsTransaction): Option[RawlsUser]
@@ -36,4 +37,6 @@ trait AuthDAO {
   def getMaximumAccessLevel(user: RawlsUserRef, workspaceId: String, txn: RawlsTransaction): WorkspaceAccessLevel
 
   def listWorkspaces(user: RawlsUserRef, txn: RawlsTransaction): Seq[WorkspacePermissionsPair]
+
+  def getACL(workspaceId: String, txn: RawlsTransaction): Future[WorkspaceACL]
 }

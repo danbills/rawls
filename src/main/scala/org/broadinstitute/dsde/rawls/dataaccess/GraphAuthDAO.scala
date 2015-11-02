@@ -9,6 +9,7 @@ import org.broadinstitute.dsde.rawls.model._
 import org.broadinstitute.dsde.rawls.model.WorkspaceAccessLevels.WorkspaceAccessLevel
 
 import scala.collection.JavaConversions._
+import scala.concurrent.Future
 
 class GraphAuthDAO extends AuthDAO with GraphDAO {
   override def loadUser(ref: RawlsUserRef, txn: RawlsTransaction): Option[RawlsUser] = txn withGraph { db =>
@@ -53,6 +54,10 @@ class GraphAuthDAO extends AuthDAO with GraphDAO {
 
   def loadGroupByEmail(groupEmail: String, txn: RawlsTransaction): Option[RawlsGroup] = txn withGraph { db =>
     getGroupVertexByEmail(db, groupEmail).map(loadObject[RawlsGroup])
+  }
+
+  override def getACL(workspaceContext: WorkspaceContext, txn: RawlsTransaction): Future[WorkspaceACL] = txn withGraph { db =>
+
   }
 
   override def createWorkspaceAccessGroups(workspaceName: WorkspaceName, userInfo: UserInfo, txn: RawlsTransaction): Map[WorkspaceAccessLevel, RawlsGroupRef] = {
