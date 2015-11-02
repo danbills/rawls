@@ -57,7 +57,6 @@ class GraphAuthDAO extends AuthDAO with GraphDAO {
   }
 
   override def getACL(workspaceContext: WorkspaceContext, txn: RawlsTransaction): Future[WorkspaceACL] = txn withGraph { db =>
-
   }
 
   override def createWorkspaceAccessGroups(workspaceName: WorkspaceName, userInfo: UserInfo, txn: RawlsTransaction): Map[WorkspaceAccessLevel, RawlsGroupRef] = {

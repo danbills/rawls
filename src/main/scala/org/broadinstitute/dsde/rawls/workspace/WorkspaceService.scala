@@ -277,10 +277,18 @@ class WorkspaceService(userInfo: UserInfo, dataSource: DataSource, containerDAO:
     }
 
   def getACL(workspaceName: WorkspaceName): Future[PerRequestMessage] =
-    dataSource.inFutureTransaction(readLocks=Set(workspaceName)) { txn =>
+    dataSource.inTransaction(readLocks=Set(workspaceName)) { txn =>
       withWorkspaceContext(workspaceName, txn) { workspaceContext =>
         requireOwnerIgnoreLock(workspaceContext.workspace) {
-          gcsDAO.getACL(workspaceContext.workspace.workspaceId) map { RequestComplete(StatusCodes.OK,_) }
+          //Pull the ACLs from the workspace. Sort the keys by level, so that higher access levels overwrite lower ones.
+          //Build a map from user/group ID to associated access level.
+          val aclList = workspaceContext.workspace.accessLevels.toSeq.sortBy(_._1)
+            .foldLeft(Map.empty[String, WorkspaceAccessLevel])({ (currentMap, elem) =>
+            val (level, groupRef) = elem
+            val group = containerDAO.authDAO.loadGroup(groupRef, txn)
+            currentMap ++ (group.users.map( u => (u.userSubjectId, level) ) ++ group.subGroups.map(sg => (sg.groupName, level)))
+          })
+          Future.successful( RequestComplete(StatusCodes.OK, aclList) )
         }
       }
     }
@@ -289,6 +297,8 @@ class WorkspaceService(userInfo: UserInfo, dataSource: DataSource, containerDAO:
     dataSource.inFutureTransaction(writeLocks=Set(workspaceName)) { txn =>
       withWorkspaceContext(workspaceName, txn) { workspaceContext =>
         requireOwnerIgnoreLock(workspaceContext.workspace) {
+          //TODO: remove existing references in other ACLs, add the new one
+          //Q: to what depth???
           gcsDAO.updateACL(userInfo.userEmail, workspaceContext.workspace.workspaceId, aclUpdates).map( _ match {
             case None => RequestComplete(StatusCodes.OK)
             case Some(reports) => RequestComplete(ErrorReport(StatusCodes.Conflict,"Unable to alter some ACLs in $workspaceName",reports))
