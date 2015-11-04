@@ -256,6 +256,10 @@ trait GraphDAO {
     new GremlinPipeline(db.asInstanceOf[OrientGraph].getVerticesOfClass(VertexSchema.Group)).filter(hasPropertyValue("groupEmail",email))
   }
 
+  def groupPipelineByEmail(db: Graph, groupEmail: String) = {
+    new GremlinPipeline(db.asInstanceOf[OrientGraph].getVerticesOfClass(VertexSchema.Group)).filter(hasPropertyValue("groupEmail",groupEmail))
+  }
+
   // vertex getters
 
   def getWorkspaceVertex(db: Graph, workspaceName: WorkspaceName) = {
@@ -300,6 +304,10 @@ trait GraphDAO {
 
   def getGroupVertexByEmail(db: Graph, email: String) = {
     getSinglePipelineResult(groupPipelineByEmail(db, email))
+  }
+
+  def getGroupVertexByEmail(db: Graph, groupEmail: String) = {
+    getSinglePipelineResult(groupPipelineByEmail(db, groupEmail))
   }
 
   def getCtorProperties(tpe: Type): Iterable[(Type, String)] = {

@@ -6,6 +6,7 @@ import org.broadinstitute.dsde.rawls.model._
 
 import scala.util.{Failure, Try}
 import scala.concurrent.Future
+import scala.util.{Failure, Success, Try}
 
 trait AuthDAO {
   def loadUser(ref: RawlsUserRef, txn: RawlsTransaction): Option[RawlsUser]
@@ -24,6 +25,16 @@ trait AuthDAO {
 
   def loadFromEmail(email: String, txn: RawlsTransaction): Option[Either[RawlsUser, RawlsGroup]] = {
     (loadUserByEmail(email, txn).map(Left(_)) ++ loadGroupByEmail(email, txn).map(Right(_))).headOption
+  }
+
+  def loadGroupByEmail(groupEmail: String, txn: RawlsTransaction): RawlsGroup
+
+  def loadFromEmail(email: String, txn: RawlsTransaction): Either[RawlsUser, RawlsGroup] = {
+    Try(Left(loadUserByEmail(email, txn))).recoverWith {
+      case e: Throwable => Try(Right(loadGroupByEmail(email, txn))).recoverWith {
+        case e: Throwable => Failure(new RawlsException(s"Cannot find user or group with email $email"))
+      }
+    }.get
   }
 
   def createWorkspaceAccessGroups(workspaceName: WorkspaceName, userInfo: UserInfo, txn: RawlsTransaction): Map[WorkspaceAccessLevel, RawlsGroupRef]
