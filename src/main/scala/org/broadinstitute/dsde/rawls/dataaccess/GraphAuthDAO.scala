@@ -56,17 +56,6 @@ class GraphAuthDAO extends AuthDAO with GraphDAO {
     getGroupVertexByEmail(db, groupEmail).map(loadObject[RawlsGroup])
   }
 
-  override def getACL(workspaceContext: WorkspaceContext, txn: RawlsTransaction): Future[WorkspaceACL] = txn withGraph { db =>
-  }
-
-  def loadGroupByEmail(groupEmail: String, txn: RawlsTransaction): RawlsGroup = txn withGraph { db =>
-    getGroupVertexByEmail(db, groupEmail) match {
-      case None => throw new RawlsException(s"Cannot load group with email $groupEmail")
-      case Some(v) =>
-        loadObject[RawlsGroup](v)
-    }
-  }
-
   override def createWorkspaceAccessGroups(workspaceName: WorkspaceName, userInfo: UserInfo, txn: RawlsTransaction): Map[WorkspaceAccessLevel, RawlsGroupRef] = {
     val user = RawlsUser(userInfo)
     saveUser(user, txn)

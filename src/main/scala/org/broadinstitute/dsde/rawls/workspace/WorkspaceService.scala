@@ -285,10 +285,27 @@ class WorkspaceService(userInfo: UserInfo, dataSource: DataSource, containerDAO:
           val aclList = workspaceContext.workspace.accessLevels.toSeq.sortBy(_._1)
             .foldLeft(Map.empty[String, WorkspaceAccessLevel])({ (currentMap, elem) =>
             val (level, groupRef) = elem
-            val group = containerDAO.authDAO.loadGroup(groupRef, txn)
-            currentMap ++
-              group.users.map    ( u => (containerDAO.authDAO.loadUser(u, txn).userEmail, level) ) ++
-              group.subGroups.map( g => (containerDAO.authDAO.loadGroup(g, txn).groupEmail, level))
+            val accessGroup = containerDAO.authDAO.loadGroup(groupRef, txn).getOrElse {
+              throw new RawlsException(s"Workspace $workspaceName is missing access group for $level")
+            }
+
+            val userLevels = accessGroup.users.map { userRef =>
+              containerDAO.authDAO.loadUser(userRef, txn).getOrElse {
+                throw new RawlsException(s"Couldn't find user for userRef $userRef")
+              }
+            } map { user =>
+              (user.userEmail.value, level)
+            }
+
+            val subgroupLevels = accessGroup.subGroups.map { groupRef =>
+              containerDAO.authDAO.loadGroup(groupRef, txn).getOrElse {
+                throw new RawlsException(s"Couldn't find group for groupRef $groupRef")
+              }
+            } map { group =>
+              (group.groupEmail.value, level)
+            }
+
+            currentMap ++ userLevels ++ subgroupLevels
           })
           Future.successful( RequestComplete(StatusCodes.OK, aclList) )
         }
