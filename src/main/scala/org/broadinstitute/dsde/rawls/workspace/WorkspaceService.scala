@@ -276,6 +276,20 @@ class WorkspaceService(userInfo: UserInfo, dataSource: DataSource, containerDAO:
       }
     }
 
+  def withRawlsUser[T](userRef: RawlsUserRef, txn: RawlsTransaction)(op: (RawlsUser) => T): T = {
+    containerDAO.authDAO.loadUser(userRef, txn) match {
+      case Some(user) => op(user)
+      case None => throw new RawlsException(s"Couldn't find user for userRef $userRef")
+    }
+  }
+
+  def withRawlsGroup[T](groupRef: RawlsGroupRef, txn: RawlsTransaction)(op: (RawlsGroup) => T): T = {
+    containerDAO.authDAO.loadGroup(groupRef, txn) match {
+      case Some(group) => op(group)
+      case None => throw new RawlsException(s"Couldn't find group for groupRef $groupRef")
+    }
+  }
+
   def getACL(workspaceName: WorkspaceName): Future[PerRequestMessage] =
     dataSource.inTransaction(readLocks=Set(workspaceName)) { txn =>
       withWorkspaceContext(workspaceName, txn) { workspaceContext =>
@@ -284,28 +298,27 @@ class WorkspaceService(userInfo: UserInfo, dataSource: DataSource, containerDAO:
           //Build a map from user/group ID to associated access level.
           val aclList = workspaceContext.workspace.accessLevels.toSeq.sortBy(_._1)
             .foldLeft(Map.empty[String, WorkspaceAccessLevel])({ (currentMap, elem) =>
+            //groupRef = group representing this access level for the workspace
             val (level, groupRef) = elem
-            val accessGroup = containerDAO.authDAO.loadGroup(groupRef, txn).getOrElse {
-              throw new RawlsException(s"Workspace $workspaceName is missing access group for $level")
-            }
+            withRawlsGroup(groupRef, txn) { accessGroup =>
 
-            val userLevels = accessGroup.users.map { userRef =>
-              containerDAO.authDAO.loadUser(userRef, txn).getOrElse {
-                throw new RawlsException(s"Couldn't find user for userRef $userRef")
+              //pairs of user emails -> this access level
+              val userLevels = accessGroup.users.map {
+                withRawlsUser(_, txn) { user =>
+                  (user.userEmail.value, level)
+                }
               }
-            } map { user =>
-              (user.userEmail.value, level)
-            }
 
-            val subgroupLevels = accessGroup.subGroups.map { groupRef =>
-              containerDAO.authDAO.loadGroup(groupRef, txn).getOrElse {
-                throw new RawlsException(s"Couldn't find group for groupRef $groupRef")
+              //pairs of group emails -> this access level
+              val subgroupLevels = accessGroup.subGroups.map {
+                withRawlsGroup(_, txn) { subGroup =>
+                  (subGroup.groupEmail.value, level)
+                }
               }
-            } map { group =>
-              (group.groupEmail.value, level)
-            }
 
-            currentMap ++ userLevels ++ subgroupLevels
+              //fold 'em into the map
+              currentMap ++ userLevels ++ subgroupLevels
+            }
           })
           Future.successful( RequestComplete(StatusCodes.OK, aclList) )
         }
