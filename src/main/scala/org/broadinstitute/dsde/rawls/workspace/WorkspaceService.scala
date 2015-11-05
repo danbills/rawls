@@ -330,6 +330,11 @@ class WorkspaceService(userInfo: UserInfo, dataSource: DataSource, containerDAO:
       withWorkspaceContext(workspaceName, txn) { workspaceContext =>
         requireOwnerIgnoreLock(workspaceContext.workspace) {
           //TODO: remove existing references in other ACLs, add the new one
+
+          //first, collapse the acl updates list so there are no dupe emails
+          //for each ACL group, remove all emails (users/subgroups) in the update list
+          //then add all emails (users/subgroups) in the update list at this access level
+
           //Q: to what depth???
           gcsDAO.updateACL(userInfo.userEmail, workspaceContext.workspace.workspaceId, aclUpdates).map( _ match {
             case None => RequestComplete(StatusCodes.OK)
