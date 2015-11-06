@@ -384,10 +384,13 @@ class WorkspaceApiServiceSpec extends FlatSpec with HttpService with ScalatestRo
 
   it should "return 200 when requesting an ACL from an existing workspace" in withTestDataApiServices { services =>
     Get(s"/workspaces/${testData.workspace.namespace}/${testData.workspace.name}/acl") ~>
-      sealRoute(services.workspaceRoutes) ~>
+      sealRoute(services.workspaceRoutes) ~> {
       check {
-        assertResult(StatusCodes.OK) { status }
+        assertResult(StatusCodes.OK) {
+          status
+        }
       }
+    }
   }
 
   it should "return 404 when requesting an ACL from a non-existent workspace" in withTestDataApiServices { services =>

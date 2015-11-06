@@ -341,7 +341,7 @@ class WorkspaceService(userInfo: UserInfo, dataSource: DataSource, containerDAO:
             case (Right(rawlsGroup:RawlsGroup), level) => RawlsGroup.toRef(rawlsGroup)
           }.toSet
 
-          val groupsByLevel = updateMap.groupBy({ case (key, value) => value })
+          val groupsByLevel: Map[WorkspaceAccessLevel, Map[Either[RawlsUser, RawlsGroup], WorkspaceAccessLevel]] = updateMap.groupBy({ case (key, value) => value })
           //go through the access level groups on the workspace and update them
           workspaceContext.workspace.accessLevels.foreach { case (level, groupRef) =>
             withRawlsGroup(groupRef, txn) { group =>
@@ -350,8 +350,8 @@ class WorkspaceService(userInfo: UserInfo, dataSource: DataSource, containerDAO:
               val groups = group.subGroups.filter( groupRef => !allTheRefs.contains(groupRef) )
 
               //generate the list of new references
-              val newusers = groupsByLevel(level).keys.collect({ case Left(ru) => RawlsUser.toRef(ru) })
-              val newgroups = groupsByLevel(level).keys.collect({ case Right(rg) => RawlsGroup.toRef(rg) })
+              val newusers = groupsByLevel.getOrElse(level, Map.empty).keys.collect({ case Left(ru) => RawlsUser.toRef(ru) })
+              val newgroups = groupsByLevel.getOrElse(level, Map.empty).keys.collect({ case Right(rg) => RawlsGroup.toRef(rg) })
 
               containerDAO.authDAO.saveGroup(group.copy( users = users ++ newusers, subGroups = groups ++ newgroups ) ,txn)
             }
