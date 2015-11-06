@@ -333,7 +333,7 @@ class WorkspaceService(userInfo: UserInfo, dataSource: DataSource, containerDAO:
           //collapse the acl updates list so there are no dupe emails, and convert to RawlsGroup/RawlsUser instances
           val updateMap: Map[Either[RawlsUser, RawlsGroup], WorkspaceAccessLevel] = aclUpdates
             .map { case upd => (containerDAO.authDAO.loadFromEmail(upd.email, txn), upd.accessLevel) }
-            .collect { case (Some(userauth), level) => (userauth -> level) }.toMap
+            .collect { case (Some(userauth), level) => userauth -> level }.toMap
 
           //make a list of all the refs we're going to update
           val allTheRefs: Set[UserAuthRef] = updateMap.map {
@@ -342,7 +342,7 @@ class WorkspaceService(userInfo: UserInfo, dataSource: DataSource, containerDAO:
           }.toSet
 
           val groupsByLevel = updateMap.groupBy({ case (key, value) => value })
-
+          //go through the access level groups on the workspace and update them
           workspaceContext.workspace.accessLevels.foreach { case (level, groupRef) =>
               withRawlsGroup(groupRef, txn) { group =>
                 //remove existing records for users and groups in the acl update list
@@ -357,12 +357,10 @@ class WorkspaceService(userInfo: UserInfo, dataSource: DataSource, containerDAO:
               }
           }
 
-          //TODO:
-
-          //TODO: googly acl update needs redoing to understand both users and subgroups
-          gcsDAO.updateACL(userInfo.userEmail, workspaceContext.workspace.workspaceId, aclUpdates).map( _ match {
+          //TODO: pull together error reports
+          gcsDAO.updateACL(userInfo, workspaceContext.workspace.workspaceId, updateMap).map( _ match {
             case None => RequestComplete(StatusCodes.OK)
-            case Some(reports) => RequestComplete(ErrorReport(StatusCodes.Conflict,"Unable to alter some ACLs in $workspaceName",reports))
+            case Some(reports) => RequestComplete( ErrorReport(StatusCodes.Conflict,s"Unable to alter some ACLs in $workspaceName",reports) )
           } )
         }
       }

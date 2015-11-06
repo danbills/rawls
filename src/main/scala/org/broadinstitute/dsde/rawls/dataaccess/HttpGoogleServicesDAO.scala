@@ -232,12 +232,12 @@ class HttpGoogleServicesDAO(
    *
    * @return a map from userId to error message (an empty map means everything was successful)
    */
-  override def updateACL(currentUserId: String, workspaceId: String, aclUpdates: Seq[WorkspaceACLUpdate]): Future[Option[Seq[ErrorReport]]] = {
+  override def updateACL(currentUser: UserInfo, workspaceId: String, aclUpdates: Map[Either[RawlsUser, RawlsGroup], WorkspaceAccessLevel]): Future[Option[Seq[ErrorReport]]] = {
     val directory = getGroupDirectory
 
-    val updateMap = aclUpdates.map{ workspaceACLUpdate => workspaceACLUpdate.email -> workspaceACLUpdate.accessLevel }.toMap
-    val futureReports = Future.traverse(updateMap){ case (userId,accessLevel) =>
-        updateUserAccess(currentUserId,userId,accessLevel,workspaceId,directory)
+    val futureReports = Future.traverse(aclUpdates){
+      case (Left(ru:RawlsUser), level) => updateUserAccess(currentUser,toProxyFromUser(ru),ru.userEmail.value,level,workspaceId,directory)
+      case (Right(rg:RawlsGroup), level) => updateUserAccess(currentUser,rg.groupEmail.value,rg.groupEmail.value,level,workspaceId,directory)
     }.map(_.collect{case Some(errorReport)=>errorReport})
     futureReports.map { reports =>
       if (reports.isEmpty) None
@@ -258,14 +258,14 @@ class HttpGoogleServicesDAO(
     }
   }
 
-  override def getMaximumAccessLevel(userId: String, workspaceId: String): Future[WorkspaceAccessLevel] = {
+  override def getMaximumAccessLevel(email: String, workspaceId: String): Future[WorkspaceAccessLevel] = {
     val bucketName = getBucketName(workspaceId)
     val members = getGroupDirectory.members
 
     Future.traverse(groupAccessLevelsAscending) { accessLevel =>
       retry(when500) { () =>
         Future {
-          blocking { members.get(toGroupId(bucketName, accessLevel), userId).execute() }
+          blocking { members.get(toGroupId(bucketName, accessLevel), email).execute() }
           accessLevel
         }
       } recover {
@@ -375,18 +375,23 @@ class HttpGoogleServicesDAO(
     retry(when500)(()=>Future(blocking(op())))
   }
 
-  private def updateUserAccess(currentUserId: String, userId: String, targetAccessLevel: WorkspaceAccessLevel, workspaceId: String, directory: Directory): Future[Option[ErrorReport]] = {
+  //expects the email to be of a google group, i.e. that users have been converted to their proxies first.
+  //userFacingEmail is the pre-proxified email for display to users in errors.
+  private def updateUserAccess(currentUser: UserInfo, groupEmail: String, userFacingEmail: String, targetAccessLevel: WorkspaceAccessLevel, workspaceId: String, directory: Directory): Future[Option[ErrorReport]] = {
     val members = directory.members
-    getMaximumAccessLevel(userId, workspaceId) flatMap { currentAccessLevel =>
+
+    //Ask Google what it thinks this group's current access level is.
+    //It might be wrong, but we still need to delete it from that group and then add it to the new level.
+    getMaximumAccessLevel(groupEmail, workspaceId) flatMap { currentAccessLevel =>
       if ( currentAccessLevel == targetAccessLevel )
         Future.successful(None)
-      else if ( userId.toLowerCase.equals(currentUserId.toLowerCase) && currentAccessLevel != targetAccessLevel )
-        Future.successful(Option(ErrorReport(s"Failed to change permissions for $userId.  You cannot change your own permissions.",Seq.empty)))
+      else if ( groupEmail.toLowerCase.equals(toProxyFromUser(currentUser).toLowerCase) && currentAccessLevel != targetAccessLevel )
+        Future.successful(Option(ErrorReport(s"Failed to change permissions for ${currentUser.userEmail}.  You cannot change your own permissions.",Seq.empty)))
       else {
         val bucketName = getBucketName(workspaceId)
-        val member = new Member().setEmail(userId).setRole(groupMemberRole)
+        val member = new Member().setEmail(groupEmail).setRole(groupMemberRole)
         val currentGroupId = toGroupId(bucketName,currentAccessLevel)
-        val deleter = members.delete(currentGroupId, userId)
+        val deleter = members.delete(currentGroupId, groupEmail)
         val targetGroupId = toGroupId(bucketName, targetAccessLevel)
         val inserter = members.insert(targetGroupId, member)
 
@@ -402,7 +407,7 @@ class HttpGoogleServicesDAO(
           else
             retryWhen500(()=>inserter.execute()).map(_=>None).recover{case throwable=>Some(throwable)}
 
-        val badThing = s"Unable to change permissions for $userId from $currentAccessLevel to $targetAccessLevel access."
+        val badThing = s"Unable to change permissions for $userFacingEmail from $currentAccessLevel to $targetAccessLevel access."
         deleteFuture zip insertFuture flatMap { _ match {
             case (None, None) => Future.successful(None) // delete and insert succeeded
             case (None, Some(throwable)) => // delete ok, but insert failed: try to restore access
@@ -414,10 +419,10 @@ class HttpGoogleServicesDAO(
               }
             case (Some(throwable), None) => // delete failed, but insert succeeded -- user is now on two lists
               val cause = toErrorReport(throwable)
-              val restoreDeleter = members.delete(targetGroupId, userId)
+              val restoreDeleter = members.delete(targetGroupId, groupEmail)
               retryWhen500(()=>restoreDeleter.execute()).map{ _ =>
                 Some(ErrorReport(badThing, cause))}.recover { case _ =>
-                Some(ErrorReport(s"Successfully granted $userId $targetAccessLevel access, but failed to remove $currentAccessLevel access. This may result in inconsistent behavior, please try removing the user (may take more than 1 try) and re-adding.", cause))
+                Some(ErrorReport(s"Successfully granted $userFacingEmail $targetAccessLevel access, but failed to remove $currentAccessLevel access. This may result in inconsistent behavior, please try removing the user (may take more than 1 try) and re-adding.", cause))
               }
             case (Some(throwable1), Some(throwable2)) => // both operations failed
               Future.successful(Some(ErrorReport(badThing,Seq(toErrorReport(throwable1),toErrorReport(throwable2)))))
@@ -465,7 +470,9 @@ class HttpGoogleServicesDAO(
       .build()
   }
 
-  def toProxyFromUser(userInfo: UserInfo) = s"PROXY_${userInfo.userSubjectId}@${appsDomain}"
+  def toProxyFromUser(rawlsUser: RawlsUser) = toProxyFromUserSubjectId(rawlsUser.userSubjectId.value)
+  def toProxyFromUser(userInfo: UserInfo) = toProxyFromUserSubjectId(userInfo.userSubjectId)
+  def toProxyFromUserSubjectId(subjectId: String) = s"PROXY_${subjectId}@${appsDomain}"
   def toUserFromProxy(proxy: String) = getGroupDirectory.groups().get(proxy).execute().getName
 
   def adminGroupName = s"${groupsPrefix}-ADMIN@${appsDomain}"

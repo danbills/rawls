@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.rawls.dataaccess
 
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import org.broadinstitute.dsde.rawls.model.WorkspaceAccessLevels._
-import org.broadinstitute.dsde.rawls.model.{ErrorReport, WorkspacePermissionsPair, UserInfo, WorkspaceACLUpdate, WorkspaceACL, WorkspaceName}
+import org.broadinstitute.dsde.rawls.model._
 import org.joda.time.DateTime
 import spray.http.StatusCodes
 import scala.concurrent.Future
@@ -16,7 +16,7 @@ trait GoogleServicesDAO {
 
   def getACL(workspaceId: String): Future[WorkspaceACL]
 
-  def updateACL(userEmail: String, workspaceId: String, aclUpdates: Seq[WorkspaceACLUpdate]): Future[Option[Seq[ErrorReport]]]
+  def updateACL(currentUser: UserInfo, workspaceId: String, aclUpdates: Map[Either[RawlsUser, RawlsGroup], WorkspaceAccessLevel]): Future[Option[Seq[ErrorReport]]]
 
   def getOwners(workspaceId: String): Future[Seq[String]]
 
