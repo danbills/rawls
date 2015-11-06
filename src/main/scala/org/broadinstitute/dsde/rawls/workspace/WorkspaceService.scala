@@ -344,24 +344,34 @@ class WorkspaceService(userInfo: UserInfo, dataSource: DataSource, containerDAO:
           val groupsByLevel = updateMap.groupBy({ case (key, value) => value })
           //go through the access level groups on the workspace and update them
           workspaceContext.workspace.accessLevels.foreach { case (level, groupRef) =>
-              withRawlsGroup(groupRef, txn) { group =>
-                //remove existing records for users and groups in the acl update list
-                val users = group.users.filter( userRef => !allTheRefs.contains(userRef) )
-                val groups = group.subGroups.filter( groupRef => !allTheRefs.contains(groupRef) )
+            withRawlsGroup(groupRef, txn) { group =>
+              //remove existing records for users and groups in the acl update list
+              val users = group.users.filter( userRef => !allTheRefs.contains(userRef) )
+              val groups = group.subGroups.filter( groupRef => !allTheRefs.contains(groupRef) )
 
-                //generate the list of new references
-                val newusers = groupsByLevel(level).keys.collect({ case Left(ru) => RawlsUser.toRef(ru) })
-                val newgroups = groupsByLevel(level).keys.collect({ case Right(rg) => RawlsGroup.toRef(rg) })
+              //generate the list of new references
+              val newusers = groupsByLevel(level).keys.collect({ case Left(ru) => RawlsUser.toRef(ru) })
+              val newgroups = groupsByLevel(level).keys.collect({ case Right(rg) => RawlsGroup.toRef(rg) })
 
-                containerDAO.authDAO.saveGroup(group.copy( users = users ++ newusers, subGroups = groups ++ newgroups ) ,txn)
-              }
+              containerDAO.authDAO.saveGroup(group.copy( users = users ++ newusers, subGroups = groups ++ newgroups ) ,txn)
+            }
           }
 
-          //TODO: pull together error reports
-          gcsDAO.updateACL(userInfo, workspaceContext.workspace.workspaceId, updateMap).map( _ match {
-            case None => RequestComplete(StatusCodes.OK)
-            case Some(reports) => RequestComplete( ErrorReport(StatusCodes.Conflict,s"Unable to alter some ACLs in $workspaceName",reports) )
-          } )
+          val emailNotFoundReports = (aclUpdates.map( wau => wau.email ) diff updateMap.keys.map({
+              case Left(rawlsUser:RawlsUser) => rawlsUser.userEmail.value
+              case Right(rawlsGroup:RawlsGroup) => rawlsGroup.groupEmail.value
+            }).toSeq)
+            .map( email => ErrorReport( StatusCodes.NotFound, email ) )
+
+          gcsDAO.updateACL(userInfo, workspaceContext.workspace.workspaceId, updateMap).map({
+            case None =>
+              if (emailNotFoundReports.isEmpty) {
+                RequestComplete(StatusCodes.OK)
+              } else {
+                RequestComplete( ErrorReport(StatusCodes.NotFound, s"Couldn't find some users/groups by email", emailNotFoundReports) )
+              }
+            case Some(reports) => RequestComplete( ErrorReport(StatusCodes.Conflict,s"Unable to alter some ACLs in $workspaceName",reports ++ emailNotFoundReports) )
+          })
         }
       }
     }
