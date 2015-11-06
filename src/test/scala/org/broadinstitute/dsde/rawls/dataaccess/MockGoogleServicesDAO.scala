@@ -55,7 +55,7 @@ class MockGoogleServicesDAO extends GoogleServicesDAO {
 
   override def getACL(workspaceId: String) = Future.successful(WorkspaceACL(mockPermissions))
 
-  override def updateACL(userEmail: String, workspaceId: String, aclUpdates: Seq[WorkspaceACLUpdate]) = Future.successful(None)
+  override def updateACL(currentUser: UserInfo, workspaceId: String, aclUpdates: Map[Either[RawlsUser, RawlsGroup], WorkspaceAccessLevel]): Future[Option[Seq[ErrorReport]]] = Future.successful(None)
 
   override def getOwners(workspaceId: String) = Future.successful(mockPermissions.filter(_._2 == WorkspaceAccessLevels.Owner).keys.toSeq)
 
