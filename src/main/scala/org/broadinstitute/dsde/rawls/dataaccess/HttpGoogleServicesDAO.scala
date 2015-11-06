@@ -235,8 +235,7 @@ class HttpGoogleServicesDAO(
   override def updateACL(currentUserId: String, workspaceId: String, aclUpdates: Seq[WorkspaceACLUpdate]): Future[Option[Seq[ErrorReport]]] = {
     val directory = getGroupDirectory
 
-    // make map to eliminate redundant instructions for a single user (last one in the sequence for a given user wins)
-    val updateMap = aclUpdates.map{ workspaceACLUpdate => workspaceACLUpdate.userId -> workspaceACLUpdate.accessLevel }.toMap
+    val updateMap = aclUpdates.map{ workspaceACLUpdate => workspaceACLUpdate.email -> workspaceACLUpdate.accessLevel }.toMap
     val futureReports = Future.traverse(updateMap){ case (userId,accessLevel) =>
         updateUserAccess(currentUserId,userId,accessLevel,workspaceId,directory)
     }.map(_.collect{case Some(errorReport)=>errorReport})

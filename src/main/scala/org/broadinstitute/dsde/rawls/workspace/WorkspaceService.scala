@@ -20,6 +20,7 @@ import org.joda.time.DateTime
 import spray.http.Uri
 import spray.http.StatusCodes
 import spray.httpx.UnsuccessfulResponseException
+import scala.collection.immutable.Iterable
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success, Try}
 
@@ -297,9 +298,8 @@ class WorkspaceService(userInfo: UserInfo, dataSource: DataSource, containerDAO:
           //Pull the ACLs from the workspace. Sort the keys by level, so that higher access levels overwrite lower ones.
           //Build a map from user/group ID to associated access level.
           val aclList = workspaceContext.workspace.accessLevels.toSeq.sortBy(_._1)
-            .foldLeft(Map.empty[String, WorkspaceAccessLevel])({ (currentMap, elem) =>
+            .foldLeft(Map.empty[String, WorkspaceAccessLevel])({ case (currentMap, (level, groupRef)) =>
             //groupRef = group representing this access level for the workspace
-            val (level, groupRef) = elem
             withRawlsGroup(groupRef, txn) { accessGroup =>
 
               //pairs of user emails -> this access level
@@ -329,13 +329,37 @@ class WorkspaceService(userInfo: UserInfo, dataSource: DataSource, containerDAO:
     dataSource.inFutureTransaction(writeLocks=Set(workspaceName)) { txn =>
       withWorkspaceContext(workspaceName, txn) { workspaceContext =>
         requireOwnerIgnoreLock(workspaceContext.workspace) {
-          //TODO: remove existing references in other ACLs, add the new one
 
-          //first, collapse the acl updates list so there are no dupe emails
-          //for each ACL group, remove all emails (users/subgroups) in the update list
-          //then add all emails (users/subgroups) in the update list at this access level
+          //collapse the acl updates list so there are no dupe emails, and convert to RawlsGroup/RawlsUser instances
+          val updateMap: Map[Either[RawlsUser, RawlsGroup], WorkspaceAccessLevel] = aclUpdates
+            .map { case upd => (containerDAO.authDAO.loadFromEmail(upd.email, txn), upd.accessLevel) }
+            .collect { case (Some(userauth), level) => (userauth -> level) }.toMap
 
-          //Q: to what depth???
+          //make a list of all the refs we're going to update
+          val allTheRefs: Set[UserAuthRef] = updateMap.map {
+            case (Left(rawlsUser:RawlsUser), level) => RawlsUser.toRef(rawlsUser)
+            case (Right(rawlsGroup:RawlsGroup), level) => RawlsGroup.toRef(rawlsGroup)
+          }.toSet
+
+          val groupsByLevel = updateMap.groupBy({ case (key, value) => value })
+
+          workspaceContext.workspace.accessLevels.foreach { case (level, groupRef) =>
+              withRawlsGroup(groupRef, txn) { group =>
+                //remove existing records for users and groups in the acl update list
+                val users = group.users.filter( userRef => !allTheRefs.contains(userRef) )
+                val groups = group.subGroups.filter( groupRef => !allTheRefs.contains(groupRef) )
+
+                //generate the list of new references
+                val newusers = groupsByLevel(level).keys.collect({ case Left(ru) => RawlsUser.toRef(ru) })
+                val newgroups = groupsByLevel(level).keys.collect({ case Right(rg) => RawlsGroup.toRef(rg) })
+
+                containerDAO.authDAO.saveGroup(group.copy( users = users ++ newusers, subGroups = groups ++ newgroups ) ,txn)
+              }
+          }
+
+          //TODO:
+
+          //TODO: googly acl update needs redoing to understand both users and subgroups
           gcsDAO.updateACL(userInfo.userEmail, workspaceContext.workspace.workspaceId, aclUpdates).map( _ match {
             case None => RequestComplete(StatusCodes.OK)
             case Some(reports) => RequestComplete(ErrorReport(StatusCodes.Conflict,"Unable to alter some ACLs in $workspaceName",reports))

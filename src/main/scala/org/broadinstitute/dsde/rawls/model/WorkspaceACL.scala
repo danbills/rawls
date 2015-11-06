@@ -6,7 +6,7 @@ import spray.json._
 
 case class WorkspaceACL(acl: Map[String, WorkspaceAccessLevel])
 
-case class WorkspaceACLUpdate(userId: String, accessLevel: WorkspaceAccessLevel)
+case class WorkspaceACLUpdate(email: String, accessLevel: WorkspaceAccessLevel)
 
 object WorkspaceAccessLevels {
   sealed trait WorkspaceAccessLevel extends RawlsEnumeration[WorkspaceAccessLevel] with Ordered[WorkspaceAccessLevel] {
