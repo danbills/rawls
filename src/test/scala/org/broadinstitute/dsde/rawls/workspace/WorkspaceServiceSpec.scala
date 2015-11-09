@@ -6,15 +6,19 @@ import org.broadinstitute.dsde.rawls.dataaccess._
 import org.broadinstitute.dsde.rawls.jobexec.SubmissionSupervisor
 import org.broadinstitute.dsde.rawls.mock.RemoteServicesMockServer
 import org.broadinstitute.dsde.rawls.graph.OrientDbTestFixture
+import org.broadinstitute.dsde.rawls.model.WorkspaceAccessLevels.WorkspaceAccessLevel
 import org.broadinstitute.dsde.rawls.model._
 import org.broadinstitute.dsde.rawls.openam.MockUserInfoDirectives
+import org.broadinstitute.dsde.rawls.webservice.PerRequest.RequestComplete
 import org.broadinstitute.dsde.rawls.webservice._
 import AttributeUpdateOperations._
 import org.joda.time.DateTime
 import org.scalatest.{FlatSpec, Matchers}
+import spray.http.{StatusCodes, StatusCode, OAuth2BearerToken}
 import spray.testkit.ScalatestRouteTest
 
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{Await, ExecutionContext}
+import scala.concurrent.duration.Duration
 
 class WorkspaceServiceSpec extends FlatSpec with ScalatestRouteTest with Matchers with OrientDbTestFixture {
   val attributeList = AttributeValueList(Seq(AttributeString("a"), AttributeString("b"), AttributeBoolean(true)))
@@ -160,6 +164,40 @@ class WorkspaceServiceSpec extends FlatSpec with ScalatestRouteTest with Matcher
     assertResult(1) { shouldBeInvalid.invalidInputs.size }
     assertResult(2) { shouldBeInvalid.invalidOutputs.size }
   }
+
+  it should "retrieve acls" in withTestDataServices { services =>
+    services.dataSource.inTransaction() { txn =>
+      //Really annoying setup. I'm trying to avoid using the patch function to test get, so I have to poke
+      //ACLs into the workspace manually.
+      val user = RawlsUser(RawlsUserSubjectId("obamaiscool"), RawlsUserEmail("obama@whitehouse.gov"))
+      val group = RawlsGroup(RawlsGroupName("test"), RawlsGroupEmail("group@whitehouse.gov"), Set.empty[RawlsUserRef], Set.empty[RawlsGroupRef])
+
+      containerDAO.authDAO.saveUser(user, txn)
+      containerDAO.authDAO.saveGroup(group, txn)
+
+      val ownerGroupRef = testData.workspace.accessLevels(WorkspaceAccessLevels.Owner)
+      val theOwnerGroup = containerDAO.authDAO.loadGroup(ownerGroupRef, txn).get
+      val replacementOwnerGroup = theOwnerGroup.copy(users = theOwnerGroup.users + user, subGroups = theOwnerGroup.subGroups + group)
+      containerDAO.authDAO.saveGroup(replacementOwnerGroup, txn)
+    }
+
+    val vComplete = Await.result(services.workspaceService.getACL(testData.workspace.toWorkspaceName), Duration.Inf)
+      .asInstanceOf[RequestComplete[(StatusCode, Map[String, WorkspaceAccessLevel])]]
+    val (vStatus, vData) = vComplete.response
+
+    assertResult(StatusCodes.OK) {
+      vStatus
+    }
+
+    assertResult(Map(
+      "test_token" -> WorkspaceAccessLevels.Owner,
+      "obama@whitehouse.gov" -> WorkspaceAccessLevels.Owner,
+      "group@whitehouse.gov" -> WorkspaceAccessLevels.Owner)) {
+      vData
+    }
+  }
+
+
 }
 
 
