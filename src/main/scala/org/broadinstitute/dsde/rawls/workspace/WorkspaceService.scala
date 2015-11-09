@@ -292,7 +292,7 @@ class WorkspaceService(userInfo: UserInfo, dataSource: DataSource, containerDAO:
   }
 
   def getACL(workspaceName: WorkspaceName): Future[PerRequestMessage] =
-    dataSource.inTransaction(readLocks=Set(workspaceName)) { txn =>
+    dataSource.inFutureTransaction(readLocks=Set(workspaceName)) { txn =>
       withWorkspaceContext(workspaceName, txn) { workspaceContext =>
         requireOwnerIgnoreLock(workspaceContext.workspace) {
           //Pull the ACLs from the workspace. Sort the keys by level, so that higher access levels overwrite lower ones.
