@@ -79,17 +79,23 @@ trait OrientDbTestFixture extends BeforeAndAfterAll {
 
   class DefaultTestData() extends TestData {
     // setup workspace objects
-    val owner = RawlsUser(userInfo)
-    val ownerGroup = makeRawlsGroup("testwsOwners", Set(owner), Set.empty)
-
     val wsName = WorkspaceName("myNamespace", "myWorkspace")
+
+    val owner = RawlsUser(userInfo)
+    val ownerGroup = RawlsGroup(wsName, WorkspaceAccessLevels.Owner, Set[RawlsUserRef](owner), Set.empty[RawlsGroupRef])
+    val writerGroup = RawlsGroup(wsName, WorkspaceAccessLevels.Write)
+    val readerGroup = RawlsGroup(wsName, WorkspaceAccessLevels.Read)
+
     val wsAttrs = Map(
       "string" -> AttributeString("yep, it's a string"),
       "number" -> AttributeNumber(10),
       "empty" -> AttributeEmptyList,
       "values" -> AttributeValueList(Seq(AttributeString("another string"), AttributeBoolean(true)))
     )
-    val workspace = Workspace(wsName.namespace, wsName.name, "aWorkspaceId", "aBucket", DateTime.now, DateTime.now, "testUser", wsAttrs, Map(WorkspaceAccessLevels.Owner -> ownerGroup))
+    val workspace = Workspace(wsName.namespace, wsName.name, "aWorkspaceId", "aBucket", DateTime.now, DateTime.now, "testUser", wsAttrs,
+      Map(WorkspaceAccessLevels.Owner -> ownerGroup,
+        WorkspaceAccessLevels.Write -> writerGroup,
+        WorkspaceAccessLevels.Read -> readerGroup))
 
     val sample1 = Entity("sample1", "Sample",
       Map(
@@ -201,6 +207,8 @@ trait OrientDbTestFixture extends BeforeAndAfterAll {
     override def save(txn:RawlsTransaction): Unit = {
       authDAO.saveUser(owner, txn)
       authDAO.saveGroup(ownerGroup, txn)
+      authDAO.saveGroup(writerGroup, txn)
+      authDAO.saveGroup(readerGroup, txn)
       workspaceDAO.save(workspace, txn)
       withWorkspaceContext(workspace, txn, bSkipLockCheck=true) { context =>
         entityDAO.save(context, aliquot1, txn)
