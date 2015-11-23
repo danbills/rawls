@@ -6,7 +6,7 @@ organization  := "org.broadinstitute"
 
 version       := "0.1"
 
-scalaVersion  := "2.11.7"
+//scalaVersion  := "2.11.7"
 
 scalacOptions := Seq("-unchecked", "-deprecation", "-encoding", "utf8")
 
@@ -16,6 +16,8 @@ resolvers += "artifactory-releases" at artifactory + "libs-release"
 
 resolvers += "artifactory-snapshots" at artifactory + "libs-snapshot"
 
+resolvers += "Typesafe repository" at "http://repo.typesafe.com/typesafe/releases/"
+
 libraryDependencies ++= {
   val akkaV = "2.3.6"
   val sprayV = "1.3.2"
@@ -23,8 +25,11 @@ libraryDependencies ++= {
   Seq(
     "com.gettyimages" %% "spray-swagger" % "0.5.0",
     "com.typesafe.akka" %% "akka-actor" % akkaV,
+    //TypesafeLibrary.akkaActor.value % akkaV,
     "com.typesafe.akka" %% "akka-testkit" % akkaV % "test",
+    //TypesafeLibrary.akkaTestkit.value % akkaV % "test",
     "com.typesafe.scala-logging" %% "scala-logging-slf4j" % "2.1.2",
+    "com.typesafe.cinnamon" %% "cinnamon-takipi" % "1.0.0",
     "io.spray" %% "spray-can" % sprayV,
     "io.spray" %% "spray-routing" % sprayV,
     "io.spray" %% "spray-client" % sprayV,
@@ -77,6 +82,12 @@ lazy val rawls = project.in(file("."))
     testOptions in IntegrationTest := Seq(Tests.Filter(s => isIntegrationTest(s)))
   )
 
+fork in run := true
+
+javaOptions in run += "-agentlib:TakipiAgent"
+
+javaOptions in run += "-Dtakipi.silent=false"
+
 // SLF4J initializes itself upon the first logging call.  Because sbt
 // runs tests in parallel it is likely that a second thread will
 // invoke a second logging call before SLF4J has completed
@@ -106,5 +117,5 @@ testOptions in Test += Tests.Setup(classLoader =>
 )
 
 val buildSettings = Defaults.defaultSettings ++ Seq(
-  javaOptions += "-Xmx2G"
+  javaOptions += "-Xmx4G"
 )
