@@ -56,7 +56,6 @@ libraryDependencies ++= {
 }
 
 assemblyMergeStrategy in assembly := {
-  case "application.conf" => MergeStrategy.concat
   case PathList("org", "apache", xs @ _*) => MergeStrategy.last
   case PathList("com", "typesafe", xs @ _*) => MergeStrategy.last
   case PathList("org", "fusesource", "jansi", xs @ _*) => MergeStrategy.first
