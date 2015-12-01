@@ -43,7 +43,7 @@ class cloneWorkspaces100 extends Simulation {
 		.exec(http("clone_request")
 			.post("/api/workspaces/broad-dsde-dev/Dec8thish/clone") //our workshop model workspace
 			.headers(headers)
-			.body(StringBody("${workspaceJson}"))) //feeds off of the workspaceJson column in the csv file
+			.body(StringBody("${workspaceJson}"))) //feeds off of the workspaceJson column in the tsv file
 
 	setUp(scn.inject(rampUsers(100) over(60 seconds))).protocols(httpProtocol) //ramp up 100 users over 60 seconds
 }

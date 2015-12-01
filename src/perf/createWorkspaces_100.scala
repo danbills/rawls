@@ -1,6 +1,7 @@
 package default
 
 import scala.concurrent.duration._
+import java.io._
 
 import io.gatling.core.Predef._
 import io.gatling.http.Predef._
@@ -27,13 +28,13 @@ class createWorkspaces100 extends Simulation {
 	//generate the TSV to use for this run
 	generateTSV(new File("../user-files/data/createWorkspaces100.tsv")) { p =>
 		val r = scala.util.Random
-		val runID = s"gatling_100clones_${r.nextInt(999999999)}"
+		val runID = s"gatling_100creations_${r.nextInt(999999999)}"
 
 		p.println("workspaceJson")
 
 		val i = 0
 		for(i <- 1 to 100){
-			p.println(s""""{""namespace"":""broad-dsde-dev"",""name"":""${runID}_${i}"",""attributes"":""{}""}"""")
+			p.println(s""""{""namespace"":""broad-dsde-dev"",""name"":""${runID}_${i}"",""attributes"":{}}"""")
 		}
 	}
 
@@ -41,8 +42,8 @@ class createWorkspaces100 extends Simulation {
 		.feed(tsv("../user-files/data/createWorkspaces100.tsv")) //the tsv from generateTSV
 		.exec(http("create_request")
 			.post("/api/workspaces")
-			.headers(headers_0)
-			.body(StringBody("${workspaceJson}"))) //feeds off of the workspaceJson column in the csv file
+			.headers(headers)
+			.body(StringBody("${workspaceJson}"))) //feeds off of the workspaceJson column in the tsv file
 
 	setUp(scn.inject(rampUsers(100) over(60 seconds))).protocols(httpProtocol) //ramp up 100 users over 60 seconds
 }
