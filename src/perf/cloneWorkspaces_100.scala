@@ -1,6 +1,7 @@
 package default
 
 import scala.concurrent.duration._
+import java.io._
 
 import io.gatling.core.Predef._
 import io.gatling.http.Predef._
@@ -8,22 +9,41 @@ import io.gatling.jdbc.Predef._
 
 class cloneWorkspaces100 extends Simulation {
 
-	val accessToken = "ya29.PAKNaoC9r_FSgCqXUDH5f7rb8IfLuDqw9zCAl6YPQfICcuq3hi8LQe2pGl53As953jyS8g" //place your token here :)
+	val accessToken = "YOUR_ACCESS_TOKEN" //place your token here :)
+
+	//function to help us generate TSVs per-run
+	def generateTSV(f: java.io.File)(op: java.io.PrintWriter => Unit) {
+	  val p = new java.io.PrintWriter(f)
+	  try { op(p) } finally { p.close() }
+	}
 
 	val httpProtocol = http
 		.baseURL("https://rawls.dsde-dev.broadinstitute.org")
 		.inferHtmlResources()
 	//	.extraInfoExtractor(extraInfo => List(extraInfo.response)) //for when we want to extract additional info for the simulation.log
 
-	val headers_0 = Map("Authorization" -> s"Bearer ${accessToken}", 
+	val headers = Map("Authorization" -> s"Bearer ${accessToken}",
 						"Content-Type" -> "application/json") 
 
+	//generate the TSV to use for this run
+	generateTSV(new File("../user-files/data/cloneWorkspaces100.tsv")) { p =>
+		val r = scala.util.Random
+		val runID = s"gatling_100clones_${r.nextInt(999999999)}"
+
+		p.println("workspaceJson")
+
+		val i = 0
+		for(i <- 1 to 100){
+			p.println(s""""{""namespace"":""broad-dsde-dev"",""name"":""${runID}_${i}""}"""")
+		}
+	}
+
 	val scn = scenario("cloneWorkspaces100")
-		.feed(csv("100_workspace_clones_fixed.csv")) //a one column csv containing the json bodies to post. generating this per-run would save some time
-		.exec(http("request_0")
-			.post("/api/workspaces/broad-dsde-dev/Dec8thish/clone") //a workspace that's similar to what will be used in the workshop
-			.headers(headers_0)
+		.feed(tsv("../user-files/data/cloneWorkspaces100.tsv")) //the tsv from generateTSV
+		.exec(http("clone_request")
+			.post("/api/workspaces/broad-dsde-dev/Dec8thish/clone") //our workshop model workspace
+			.headers(headers)
 			.body(StringBody("${workspaceJson}"))) //feeds off of the workspaceJson column in the csv file
 
-	setUp(scn.inject(atOnceUsers(100))).protocols(httpProtocol) //this will be changed to ramp 100 users up over 60 seconds
+	setUp(scn.inject(rampUsers(100) over(60 seconds))).protocols(httpProtocol) //ramp up 100 users over 60 seconds
 }
