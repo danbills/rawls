@@ -9,7 +9,9 @@ import io.gatling.jdbc.Predef._
 
 class createWorkspaces extends Simulation {
 
-	val accessToken = "YOUR_ACCESS_TOKEN" //place your token here :)
+	val lines = scala.io.Source.fromFile("../user-files/config.txt").getLines
+	val accessToken = lines.next
+	val numUsers = lines.next.toInt
 
 	//function to help us generate TSVs per-run
 	def generateTSV(f: java.io.File)(op: java.io.PrintWriter => Unit) {
@@ -38,12 +40,12 @@ class createWorkspaces extends Simulation {
 		}
 	}
 
-	val scn = scenario("createWorkspaces")
+	val scn = scenario(s"createWorkspaces_${numUsers}")
 		.feed(tsv("../user-files/data/createWorkspaces100.tsv")) //the tsv from generateTSV
 		.exec(http("create_request")
 			.post("/api/workspaces")
 			.headers(headers)
 			.body(StringBody("${workspaceJson}"))) //feeds off of the workspaceJson column in the tsv file
 
-	setUp(scn.inject(rampUsers(100) over(60 seconds))).protocols(httpProtocol) //ramp up 100 users over 60 seconds
+	setUp(scn.inject(rampUsers(numUsers) over(60 seconds))).protocols(httpProtocol) //ramp up n users over 60 seconds
 }
