@@ -15,6 +15,8 @@
           #results = results
         }
 
+    Make sure those lines are uncommented!
+
 3. Create a plaintext config.txt file in your {GATLING_HOME}/user-files which is of the following form:
 
     	{YOUR_ACCESS_TOKEN}
@@ -30,6 +32,8 @@
 6. Let it run.
 
 # Other things to note:
+
+- May need to change the billing project and request URL (everything is hardcoded to dev for the time being- I'll make more options configurable at some point)
 
 - If you want, you can view the list of JSON bodies that were posted for createWorkspaces and cloneWorkspaces.
 
