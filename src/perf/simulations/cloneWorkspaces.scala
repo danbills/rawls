@@ -10,8 +10,8 @@ import io.gatling.jdbc.Predef._
 class cloneWorkspaces extends Simulation {
 
 	val lines = scala.io.Source.fromFile("../user-files/config.txt").getLines
-	val accessToken = lines.next
-	val numUsers = lines.next.toInt
+	val accessToken = "NULL"
+	val numUsers = 1
 
 	//function to help us generate TSVs per-run
 	def generateTSV(f: java.io.File)(op: java.io.PrintWriter => Unit) {
@@ -28,7 +28,7 @@ class cloneWorkspaces extends Simulation {
 						"Content-Type" -> "application/json") 
 
 	//generate the TSV to use for this run
-	generateTSV(new File("../user-files/data/cloneWorkspaces100.tsv")) { p =>
+	generateTSV(new File(s"../user-files/data/cloneWorkspaces${numUsers}.tsv")) { p =>
 		val r = scala.util.Random
 		val runID = s"gatling_clones_${r.nextInt(999999999)}"
 
@@ -41,7 +41,7 @@ class cloneWorkspaces extends Simulation {
 	}
 
 	val scn = scenario(s"cloneWorkspaces_${numUsers}")
-		.feed(tsv("../user-files/data/cloneWorkspaces100.tsv")) //the tsv from generateTSV
+		.feed(tsv(s"../user-files/data/cloneWorkspaces${numUsers}.tsv")) //the tsv from generateTSV
 		.exec(http("clone_request")
 			.post("/api/workspaces/broad-dsde-dev/Dec8thish/clone") //our workshop model workspace
 			.headers(headers)

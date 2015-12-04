@@ -23,7 +23,7 @@ class launchAnalysis extends Simulation {
 	val submissionBody = """{"methodConfigurationNamespace":"alex_methods","methodConfigurationName":"cancer_exome_pipeline_v2","entityType":"pair_set","entityName":"pair_set_1","expression":"this.pairs"}"""
 
 	val scn = scenario(s"launchAnalysis_${numUsers}")
-		.feed(tsv("100_submissions_workspaceNames.tsv")) //feed the list of clones created for this test
+		.feed(tsv("{LIST_OF_WORKSPACE_NAMES}")) //feed the list of clones created for this test
 		.exec(http("submission_request")
 			.post("/api/workspaces/broad-dsde-dev/${workspaceName}/submissions")
 			.headers(headers)
