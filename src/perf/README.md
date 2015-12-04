@@ -17,19 +17,19 @@
 
 3. Create a plaintext config.txt file in your {GATLING_HOME}/user-files which is of the following form:
 
-	{YOUR_ACCESS_TOKEN}
-	{NUM_USERS}
+    	{YOUR_ACCESS_TOKEN}
+    	{NUM_USERS}
 
 	Example:
 
-	ya29.ZZZZZZ_zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz
-    100
+    	ya29.ZZZZZZ_zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz
+        100
 
 4. Run ./gatling.sh in located in {GATLING_HOME}/bin
 5. A list of valid simulations will pop up. Select one that excites you.
 6. Let it run.
 
-Other things to note:
+# Other things to note:
 
 - If you want, you can view the list of JSON bodies that were posted for createWorkspaces and cloneWorkspaces.
 
