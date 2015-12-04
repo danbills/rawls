@@ -15,39 +15,6 @@ case class RawlsGroupEmail(value: String) extends UserAuthType
 case class RawlsBillingProjectName(value: String) extends UserAuthType
 case class RawlsGroupMemberList(userEmails: Seq[String], subGroupEmails: Seq[String])
 
-case class RawlsUser(userSubjectId: RawlsUserSubjectId, userEmail: RawlsUserEmail) extends DomainObject {
-  def idFields = Seq("userSubjectId")
-}
-
-object RawlsUser {
-  implicit def toRef(u: RawlsUser) = RawlsUserRef(u.userSubjectId)
-
-  def apply(userInfo: UserInfo): RawlsUser =
-    RawlsUser(RawlsUserSubjectId(userInfo.userSubjectId), RawlsUserEmail(userInfo.userEmail))
-}
-
-case class RawlsGroup(groupName: RawlsGroupName, groupEmail: RawlsGroupEmail, users: Set[RawlsUserRef], subGroups: Set[RawlsGroupRef]) extends DomainObject {
-  def idFields = Seq("groupName")
-}
-
-object RawlsGroup {
-  implicit def toRef(g: RawlsGroup) = RawlsGroupRef(g.groupName)
-
-  // for Workspace Access Groups
-  def apply(workspaceName: WorkspaceName, accessLevel: WorkspaceAccessLevel): RawlsGroup =
-    apply(workspaceName, accessLevel, Set.empty[RawlsUserRef], Set.empty[RawlsGroupRef])
-
-  // for Workspace Access Groups
-  def apply(workspaceName: WorkspaceName, accessLevel: WorkspaceAccessLevel, users: Set[RawlsUserRef], groups: Set[RawlsGroupRef]): RawlsGroup = {
-    val name = RawlsGroupName(UserAuth.toWorkspaceAccessGroupName(workspaceName, accessLevel))
-    RawlsGroup(name, RawlsGroupEmail(""), users, groups)
-  }
-}
-
-case class RawlsBillingProject(projectName: RawlsBillingProjectName, users: Set[RawlsUserRef], cromwellAuthBucketUrl: String) extends DomainObject {
-  def idFields = Seq("projectName")
-}
-
 object UserAuth {
 
   def toWorkspaceAccessGroupName(workspaceName: WorkspaceName, accessLevel: WorkspaceAccessLevel) =

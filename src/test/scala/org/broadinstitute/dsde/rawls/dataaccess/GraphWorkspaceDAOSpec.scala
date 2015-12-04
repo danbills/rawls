@@ -11,6 +11,10 @@ import scala.collection.JavaConversions._
 
 class GraphWorkspaceDAOSpec extends FlatSpec with Matchers with OrientDbTestFixture {
 
+  "scala" should "boop" in {
+    println( CheckType.getSubclasses( CheckType.typeStrOf[Seq[_]] ) )
+  }
+
   "GraphWorkspaceDAO" should "save a new workspace" in withDefaultTestDatabase { dataSource =>
     dataSource.inTransaction() { txn =>
       val workspace2 = Workspace(

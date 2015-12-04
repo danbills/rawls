@@ -19,17 +19,6 @@ trait Attributable {
   def briefName: String
 }
 
-trait DomainObject {
-  //the names of the fields on this object that uniquely identify it relative to any graph siblings
-  def idFields: Seq[String]
-
-  def getFieldValue(tpe: Type, field: String): String = {
-    val mirror = ru.runtimeMirror(this.getClass.getClassLoader)
-    val idFieldSym = tpe.decl(ru.TermName(field)).asMethod
-    mirror.reflect(this).reflectField(idFieldSym).get.asInstanceOf[String]
-  }
-}
-
 /**
  * Created by dvoet on 4/24/15.
  */
@@ -49,40 +38,9 @@ case class WorkspaceRequest (
   def briefName = toWorkspaceName.toString
 }
 
-case class Workspace(
-                      namespace: String,
-                      name: String,
-                      workspaceId: String,
-                      bucketName: String,
-                      createdDate: DateTime,
-                      lastModified: DateTime,
-                      createdBy: String,
-                      attributes: Map[String, Attribute],
-                      accessLevels: Map[WorkspaceAccessLevel, RawlsGroupRef],
-                      isLocked: Boolean = false
-                      ) extends Attributable with DomainObject {
-  def toWorkspaceName = WorkspaceName(namespace,name)
-  def briefName = toWorkspaceName.toString
-  def idFields = Seq("name")
-}
-
 case class WorkspaceSubmissionStats(lastSuccessDate: Option[DateTime],
                                     lastFailureDate: Option[DateTime],
                                     runningSubmissionsCount: Int)
-
-
-case class EntityName(
-                   name: String)
-
-case class Entity(
-                   name: String,
-                   entityType: String,
-                   attributes: Map[String, Attribute]
-                   ) extends Attributable with DomainObject {
-  def briefName = name
-  def path( workspaceName: WorkspaceName ) = s"${workspaceName.path}/entities/${name}"
-  def idFields = Seq("name")
-}
 
 case class MethodConfigurationName(
                    name: String,
@@ -101,36 +59,6 @@ case class EntityCopyDefinition(
                    entityType: String,
                    entityNames: Seq[String]
                    )
-
-case class MethodRepoMethod(
-                   methodNamespace: String,
-                   methodName: String,
-                   methodVersion: Int
-                   ) extends DomainObject {
-  def idFields = Seq("methodName")
-}
-
-case class MethodConfiguration(
-                   namespace: String,
-                   name: String,
-                   rootEntityType: String,
-                   prerequisites: Map[String, AttributeString],
-                   inputs: Map[String, AttributeString],
-                   outputs: Map[String, AttributeString],
-                   methodRepoMethod:MethodRepoMethod
-                   ) extends DomainObject {
-  def toShort : MethodConfigurationShort = MethodConfigurationShort(name, rootEntityType, methodRepoMethod, namespace)
-  def path( workspaceName: WorkspaceName ) = workspaceName.path+s"/methodConfigs/${namespace}/${name}"
-  def idFields = Seq("name", "namespace")
-}
-
-case class MethodConfigurationShort(
-                                name: String,
-                                rootEntityType: String,
-                                methodRepoMethod:MethodRepoMethod,
-                                namespace: String) extends DomainObject {
-  def idFields = Seq("name")
-}
 
 case class ValidatedMethodConfiguration(
                                          methodConfiguration: MethodConfiguration,

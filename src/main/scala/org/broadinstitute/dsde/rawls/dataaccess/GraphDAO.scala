@@ -7,7 +7,6 @@ import com.tinkerpop.blueprints.{Edge, Direction, Graph, Vertex}
 import com.tinkerpop.pipes.PipeFunction
 import com.tinkerpop.gremlin.java.GremlinPipeline
 import com.tinkerpop.pipes.branch.LoopPipe
-import org.broadinstitute.dsde.rawls.model.RawlsEnumeration
 import org.broadinstitute.dsde.rawls.model._
 import org.broadinstitute.dsde.rawls.{RawlsExceptionWithStatusCode, RawlsException}
 import org.joda.time.DateTime
@@ -15,6 +14,7 @@ import spray.http.StatusCodes
 
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
+import scala.collection.concurrent.TrieMap
 import scala.collection.{immutable, Map}
 import scala.reflect.ClassTag
 import scala.language.implicitConversions
@@ -75,6 +75,49 @@ object EdgeSchema {
     allEdgeRelations.filter( er => prefix == er.prefix ).head
   }
   def stripEdgeRelation(str: String): String = str.split(sep, 2).last
+}
+
+object CheckType {
+  val DomainObject = typeStrOf[DomainObject]
+  val WorkspaceName = typeStrOf[WorkspaceName]
+  val String = typeStrOf[java.lang.String]
+  val Int = typeStrOf[Int]
+  val Boolean = typeStrOf[Boolean]
+  val DateTime = typeStrOf[DateTime]
+
+  val Attribute = typeStrOf[Attribute]
+  val AttributeValue = typeStrOf[AttributeValue]
+  val AttributeEntityReference = typeStrOf[AttributeEntityReference]
+  val AttributeValueList = typeStrOf[AttributeValueList]
+  val AttributeEntityReferenceList = typeStrOf[AttributeEntityReferenceList]
+
+  val RawlsUserRef = typeStrOf[RawlsUserRef]
+  val RawlsGroupRef = typeStrOf[RawlsGroupRef]
+  val UserAuthType = typeStrOf[UserAuthType]
+
+  def typeStrOf[T: TypeTag]: String = symbolOf[T].fullName
+
+  private def clsToType(clazz: Class[_]): Type = {
+    val runtimeMirror = ru.runtimeMirror(clazz.getClassLoader)
+    runtimeMirror.classSymbol(clazz).toType
+  }
+
+  def getTypeStr(tpe: Type): String = tpe.typeSymbol.fullName
+
+  private val typeCheckMap = TrieMap[String, Seq[String]]()
+
+  private def getSubclasses(superStr: String) = {
+    val ls = clsToType(Class.forName(superStr)).typeSymbol.asClass.knownDirectSubclasses.map({ sc =>
+      sc.fullName
+    }).toList
+    superStr :: ls.filterNot(elem => elem == superStr)
+  }
+
+  def equalType(tpStr: String, superStr: String) = tpStr == superStr
+
+  def subType(tpStr: String, superStr: String) = {
+    typeCheckMap.getOrElseUpdate( superStr, { getSubclasses(superStr) }).contains(tpStr)
+  }
 }
 
 trait GraphDAO {
@@ -638,32 +681,34 @@ trait GraphDAO {
   }
 
   private def loadProperty(tpe: Type, propName: String, vertex: Vertex): Any = {
+    val tpStr = tpe.typeSymbol.fullName
     tpe match {
       //Basic types. TODO: More of these?
-      case tp if tp =:= typeOf[String]  => vertex.getProperty(propName)
-      case tp if tp =:= typeOf[Int]     => vertex.getProperty(propName)
-      case tp if tp =:= typeOf[Boolean] => vertex.getProperty(propName)
+      case tp if CheckType.equalType(tpStr, CheckType.String) => vertex.getProperty(propName)
+      case tp if CheckType.equalType(tpStr, CheckType.Int) => vertex.getProperty(propName)
+      case tp if CheckType.equalType(tpStr, CheckType.Boolean) => vertex.getProperty(propName)
       //serializing joda datetime across the network breaks, though it works fine in-memory
-      case tp if tp =:= typeOf[DateTime]=> new DateTime(vertex.getProperty(propName).asInstanceOf[Date])
+      case tp if CheckType.equalType(tpStr, CheckType.DateTime) => new DateTime(vertex.getProperty(propName).asInstanceOf[Date])
 
       // RawlsUser and RawlsGroup field types.
-      case tp if tp <:< typeOf[UserAuthType]  => loadUserAuth(tp, propName, vertex)
+      case tp if CheckType.subType(tpStr, CheckType.UserAuthType) => loadUserAuth(tp, propName, vertex)
 
       //Attributes.
-      case tp if tp <:< typeOf[AttributeValue] => AttributeConversions.propertyToAttribute(vertex.getProperty(propName))
-      case tp if tp <:< typeOf[AttributeEntityReference] => loadAttributeRef(propName, vertex)
-      case tp if tp <:< typeOf[AttributeValueList] => AttributeValueList(loadAttributeList[AttributeValue](propName, vertex))
-      case tp if tp <:< typeOf[AttributeEntityReferenceList] => AttributeEntityReferenceList(loadAttributeList[AttributeEntityReference](propName, vertex))
-      case tp if tp <:< typeOf[Attribute] => loadMysteriouslyTypedAttribute(propName, vertex)
+      case tp if CheckType.subType(tpStr, CheckType.AttributeValue) => AttributeConversions.propertyToAttribute(vertex.getProperty(propName))
+      case tp if CheckType.subType(tpStr, CheckType.AttributeEntityReference) => loadAttributeRef(propName, vertex)
+      case tp if CheckType.subType(tpStr, CheckType.AttributeValueList) => AttributeValueList(loadAttributeList[AttributeValue](propName, vertex))
+      case tp if CheckType.subType(tpStr, CheckType.AttributeEntityReferenceList) => AttributeEntityReferenceList(loadAttributeList[AttributeEntityReference](propName, vertex))
+      case tp if CheckType.subType(tpStr, CheckType.Attribute) => loadMysteriouslyTypedAttribute(propName, vertex)
 
       //UserAuthRef types.
-      case tp if tp <:< typeOf[RawlsUserRef] => loadUserRef(propName, vertex)
-      case tp if tp <:< typeOf[RawlsGroupRef] => loadGroupRef(propName, vertex)
+      case tp if CheckType.subType(tpStr, CheckType.RawlsUserRef) => loadUserRef(propName, vertex)
+      case tp if CheckType.subType(tpStr, CheckType.RawlsGroupRef) => loadGroupRef(propName, vertex)
 
       //Enums.
       case tp if isRawlsEnum(tp) => enumWithName(tp, vertex.getProperty(propName))
 
       //Collections. Note that a Seq is treated as a map with the keys as indices.
+      //We don't try to be clever with typechecks here.
       case tp if tp <:< typeOf[Seq[_]] => loadStringMap(getTypeParams(tp).head, propName, vertex).toSeq.sortBy(_._1.toInt).map(_._2)
       case tp if tp <:< typeOf[Set[_]] => loadStringMap(getTypeParams(tp).head, propName, vertex).toSeq.sortBy(_._1.toInt).map(_._2).toSet
       case tp if tp <:< typeOf[Map[String,_]] => loadStringMap(getTypeParams(tp).last, propName, vertex)
@@ -673,10 +718,10 @@ trait GraphDAO {
       case tp if tp <:< typeOf[Option[_]] => loadOpt(getTypeParams(tp).head, propName, vertex)
 
       //Everything else.
-      case tp if tp <:< typeOf[DomainObject] => loadSubObject(tp, propName, vertex)
+      case tp if CheckType.subType(tpStr, CheckType.DomainObject) => loadSubObject(tp, propName, vertex)
 
       //The Forbidden Zone
-      case tp if tp <:< typeOf[WorkspaceName] => throw new RawlsException("WorkspaceName is not a supported attribute type.")
+      case tp if CheckType.subType(tpStr, CheckType.WorkspaceName) => throw new RawlsException("WorkspaceName is not a supported attribute type.")
 
       //Aaaaah! Freak out! (le freak, c'est chic)
       case tp => throw new RawlsException(s"Error loading property $propName from $vertex: unknown type ${tp.toString}")

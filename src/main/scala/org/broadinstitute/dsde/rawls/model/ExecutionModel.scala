@@ -52,28 +52,6 @@ case class ExecutionServiceWorkflowOptions(
   refresh_token: String,
   auth_bucket: String)
 
-// Status of a successfully started workflow
-case class Workflow(
-  workflowId: String,
-  status: WorkflowStatus,
-  statusLastChangedDate: DateTime,
-  workflowEntity: AttributeEntityReference,
-  inputResolutions: Seq[SubmissionValidationValue],
-  messages: Seq[AttributeString] = Seq.empty
-) extends DomainObject {
-  def idFields = Seq("workflowId")
-}
-
-// Encapsulating errors for workflows that failed to start
-case class WorkflowFailure(
-  entityName: String,
-  entityType: String,
-  inputResolutions: Seq[SubmissionValidationValue],
-  errors: Seq[AttributeString]
-) extends DomainObject {
-  def idFields = Seq("entityName")
-}
-
 case class TaskOutput(
   logs: Option[Seq[Map[String, String]]],
   outputs: Option[Map[String, Attribute]]
@@ -83,21 +61,6 @@ case class WorkflowOutputs(
   workflowId: String,
   tasks: Map[String, TaskOutput]
 )
-
-// Status of a submission
-case class Submission(
-  submissionId: String,
-  submissionDate: DateTime,
-  submitter: RawlsUserRef,
-  methodConfigurationNamespace: String,
-  methodConfigurationName: String,
-  submissionEntity: AttributeEntityReference,
-  workflows: Seq[Workflow],
-  notstarted: Seq[WorkflowFailure],
-  status: SubmissionStatus
-) extends DomainObject {
-  def idFields = Seq("submissionId")
-}
 
 case class SubmissionStatusResponse(
   submissionId: String,
@@ -124,15 +87,6 @@ case class SubmissionValidationHeader(
   entityType: String,
   inputExpressions: Seq[SubmissionValidationInput] // size of Seq is nInputs
 )
-
-// result of an expression parse
-case class SubmissionValidationValue(
-  value: Option[Attribute],
-  error: Option[String],
-  inputName: String
-) extends DomainObject {
-  def idFields = Seq("inputName")
-}
 
 // the results of parsing each of the inputs for one entity
 case class SubmissionValidationEntityInputs(
