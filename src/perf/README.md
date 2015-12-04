@@ -1,14 +1,14 @@
 # Running tests in Gatling
 
 1. Download Gatling: http://gatling.io/#/download
-2. Point your gatling.conf located in {GATLING_HOME}/conf to use the bodies, data, and simulation in {RAWLS_HOME}/src/perf
+2. Point your gatling.conf located in {GATLING_HOME}/conf to use the simulations in {RAWLS_HOME}/src/perf
 	Locations are configurable under "directory"
 
 	It should look like:
 
 	    directory {
-          data = {your_rawls_home}/src/perf/data
-          bodies = {your_rawls_home}/src/perf/bodies
+          #data = user-files/data 
+          #bodies = user-files/bodies
           simulations = {your_rawls_home}/src/perf/simulations
           #reportsOnly = ""
           #binaries = ""
@@ -33,9 +33,9 @@
 
 # Other things to note:
 
-- May need to change the billing project and request URL (everything is hardcoded to dev for the time being- I'll make more options configurable at some point)
+- You may need to change the billing project and request URL within each script (everything is hardcoded to dev for the time being- I'll make more options configurable at some point)
 
-- If you want, you can view the list of JSON bodies that were posted for createWorkspaces and cloneWorkspaces.
+- If you want, you can view the list of JSON bodies that were posted for createWorkspaces and cloneWorkspaces. To do so go to {GATLING_HOME}/user-files/data
 
 - The TSV import can use any TSV you want, just point the simulation to use it in the line:
 	.bodyPart(RawFileBodyPart("entities", "YOUR_TSV_FILE_PATH").contentType("text/plain")))
