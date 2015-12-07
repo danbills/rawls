@@ -9,39 +9,50 @@ import io.gatling.jdbc.Predef._
 
 class cloneWorkspaces extends Simulation {
 
+	//Helpers to set up the run
+
 	val lines = scala.io.Source.fromFile("../user-files/config.txt").getLines
-	val accessToken = "NULL"
-	val numUsers = 1
+	val accessToken = lines.next
+	val numUsers = lines.next.toInt
 
 	//function to help us generate TSVs per-run
-	def generateTSV(f: java.io.File)(op: java.io.PrintWriter => Unit) {
+	def fileGenerator(f: java.io.File)(op: java.io.PrintWriter => Unit) {
 	  val p = new java.io.PrintWriter(f)
 	  try { op(p) } finally { p.close() }
 	}
 
-	val httpProtocol = http
-		.baseURL("https://rawls.dsde-dev.broadinstitute.org")
-		.inferHtmlResources()
-	//	.extraInfoExtractor(extraInfo => List(extraInfo.response)) //for when we want to extract additional info for the simulation.log
+	val r = scala.util.Random
+	val runID = s"gatling_clones_${r.nextInt}"
 
-	val headers = Map("Authorization" -> s"Bearer ${accessToken}",
-						"Content-Type" -> "application/json") 
-
-	//generate the TSV to use for this run
-	generateTSV(new File(s"../user-files/data/cloneWorkspaces${numUsers}.tsv")) { p =>
-		val r = scala.util.Random
-		val runID = s"gatling_clones_${r.nextInt(999999999)}"
-
+	//generates a tsv with json bodies to create workspaces
+	fileGenerator(new File(s"../user-files/data/cloneWorkspaces_${runID}.tsv")) { p =>
 		p.println("workspaceJson")
-
 		val i = 0
-		for(i <- 1 to 100){
+		for(i <- 1 to numUsers){
 			p.println(s""""{""namespace"":""broad-dsde-dev"",""name"":""${runID}_${i}""}"""")
 		}
 	}
 
+	//generates a list of workspaceNames that are to be created. optionally feed this into deleteWorkspaces.scala to cleanup
+	fileGenerator(new File(s"../user-files/data/cloneWorkspaces_NAMES_${runID}.tsv")) { p =>
+		p.println("workspaceName")
+		val i = 0
+		for(i <- 1 to numUsers){
+			p.println(s"${runID}_${i}")
+		}
+	}
+
+	//The gatling run
+
+	val httpProtocol = http
+		.baseURL("https://rawls.dsde-dev.broadinstitute.org")
+		.inferHtmlResources()
+
+	val headers = Map("Authorization" -> s"Bearer ${accessToken}",
+		"Content-Type" -> "application/json")
+
 	val scn = scenario(s"cloneWorkspaces_${numUsers}")
-		.feed(tsv(s"../user-files/data/cloneWorkspaces${numUsers}.tsv")) //the tsv from generateTSV
+		.feed(tsv(s"../user-files/data/cloneWorkspaces_${runID}.tsv")) //the tsv from generateTSV
 		.exec(http("clone_request")
 			.post("/api/workspaces/broad-dsde-dev/Dec8thish/clone") //our workshop model workspace
 			.headers(headers)
