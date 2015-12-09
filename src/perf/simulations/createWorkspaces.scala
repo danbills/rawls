@@ -1,5 +1,7 @@
 package default
 
+import io.gatling.core.structure.ScenarioBuilder
+
 import scala.concurrent.duration._
 import java.io._
 
@@ -7,57 +9,44 @@ import io.gatling.core.Predef._
 import io.gatling.http.Predef._
 import io.gatling.jdbc.Predef._
 
-class createWorkspaces extends Simulation {
+class createWorkspaces extends RawlsSimulation {
+  override def buildScenario(): ScenarioBuilder = {
 
-	//Helpers to set up the run
+    def fileGenerator(f: java.io.File)(op: java.io.PrintWriter => Unit) {
+      val p = new java.io.PrintWriter(f)
+      try {
+        op(p)
+      } finally {
+        p.close()
+      }
+    }
 
-	val lines = scala.io.Source.fromFile("../user-files/config.txt").getLines
-	val accessToken = lines.next
-	val numUsers = lines.next.toInt
+    val r = scala.util.Random
+    val runID = s"gatling_creations_${r.nextInt}"
 
-	def fileGenerator(f: java.io.File)(op: java.io.PrintWriter => Unit) {
-		val p = new java.io.PrintWriter(f)
-		try { op(p) } finally { p.close() }
-	}
+    //generates a tsv with json bodies to create workspaces
+    fileGenerator(new File(s"../user-files/data/createWorkspaces_${runID}.tsv")) { p =>
+      p.println("workspaceJson")
+      val i = 0
+      for (i <- 1 to numUsers) {
+        p.println( s""""{""namespace"":""broad-dsde-dev"",""name"":""${runID}_${i}"",""attributes"":{}}"""")
+      }
+    }
 
-	val r = scala.util.Random
-	val runID = s"gatling_creations_${r.nextInt}"
+    //generates a list of workspaceNames that are to be created. optionally feed this into deleteWorkspaces.scala to cleanup
+    fileGenerator(new File(s"../user-files/data/createWorkspaces_NAMES_${runID}.tsv")) { p =>
+      p.println("workspaceName")
+      val i = 0
+      for (i <- 1 to numUsers) {
+        p.println(s"${runID}_${i}")
+      }
+    }
 
-	//generates a tsv with json bodies to create workspaces
-	fileGenerator(new File(s"../user-files/data/createWorkspaces_${runID}.tsv")) { p =>
-		p.println("workspaceJson")
-		val i = 0
-		for(i <- 1 to numUsers){
-			p.println(s""""{""namespace"":""broad-dsde-dev"",""name"":""${runID}_${i}"",""attributes"":{}}"""")
-		}
-	}
-
-	//generates a list of workspaceNames that are to be created. optionally feed this into deleteWorkspaces.scala to cleanup
-	fileGenerator(new File(s"../user-files/data/createWorkspaces_NAMES_${runID}.tsv")) { p =>
-		p.println("workspaceName")
-		val i = 0
-		for(i <- 1 to numUsers){
-			p.println(s"${runID}_${i}")
-		}
-	}
-
-
-	//The run itself
-
-	val httpProtocol = http
-		.baseURL("https://rawls.dsde-dev.broadinstitute.org")
-		.inferHtmlResources()
-
-	val headers = Map("Authorization" -> s"Bearer ${accessToken}",
-		"Content-Type" -> "application/json")
-
-	val scn = scenario(s"createWorkspaces_${numUsers}")
-		.feed(tsv(s"../user-files/data/createWorkspaces_${runID}.tsv"))
-		.exec(http("create_request")
-		.post("/api/workspaces")
-		.headers(headers)
-		.body(StringBody("${workspaceJson}")))
-
-	//NOTE: be sure to re-configure time if needed
-	setUp(scn.inject(rampUsers(numUsers) over(30 seconds))).protocols(httpProtocol)
+    scenario(s"createWorkspaces_${numUsers}")
+      .feed(tsv(s"../user-files/data/createWorkspaces_${runID}.tsv"))
+      .exec(http("create_request")
+        .post("/api/workspaces")
+        .headers(headers)
+        .body(StringBody("${workspaceJson}")))
+  }
 }
