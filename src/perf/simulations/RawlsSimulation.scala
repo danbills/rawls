@@ -23,7 +23,7 @@ abstract class RawlsSimulation extends Simulation {
   val headers = Map("Authorization" -> s"Bearer ${accessToken}",
     "Content-Type" -> "application/json")
 
-  abstract def buildScenario():ScenarioBuilder //subclasses override this
+  def buildScenario():ScenarioBuilder //subclasses override this
 
   def run() = {
     setUp(
@@ -32,4 +32,16 @@ abstract class RawlsSimulation extends Simulation {
     ).protocols(httpProtocol)
   }
   run()
+
+  //Writes any printlns in op to the given file f.
+  //TODO: ditch this entirely in favour of an iterator-based approach
+  //see http://gatling.io/docs/2.1.7/session/feeder.html
+  def fileGenerator(f: java.io.File)(op: java.io.PrintWriter => Unit) {
+    val p = new java.io.PrintWriter(f)
+    try {
+      op(p)
+    } finally {
+      p.close()
+    }
+  }
 }
