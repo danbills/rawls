@@ -9,12 +9,19 @@ import io.gatling.core.Predef._
 import io.gatling.http.Predef._
 import io.gatling.jdbc.Predef._
 
+import spray.json._
+
+import com.typesafe.config.ConfigFactory
+
 abstract class RawlsSimulation extends Simulation {
   //configs to be config'd
   val lines = scala.io.Source.fromFile("../user-files/config.txt").getLines
   val accessToken = lines.next
   val numUsers = lines.next.toInt
   val testDuration = 30 seconds
+
+  val conf = ConfigFactory.load()
+  val bar1 = conf.getInt("foo.bar")
 
   val httpProtocol = http
     .baseURL("https://rawls.dsde-dev.broadinstitute.org")

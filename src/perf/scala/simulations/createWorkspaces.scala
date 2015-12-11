@@ -23,6 +23,9 @@ class createWorkspaces extends RawlsSimulation {
       }
     }
 
+
+    oooohhhhh
+
     //generates a list of workspaceNames that are to be created. optionally feed this into deleteWorkspaces.scala to cleanup
     fileGenerator(new File(s"../user-files/data/createWorkspaces_NAMES_${runID}.tsv")) { p =>
       p.println("workspaceName")
