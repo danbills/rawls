@@ -12,6 +12,8 @@ class launchAnalysis extends Simulation {
 	val accessToken = lines.next
 	val numUsers = lines.next.toInt
 
+	val workspaceListTSV = System.getProperty("workspaceList")
+
 	val httpProtocol = http
 		.baseURL("https://rawls.dsde-dev.broadinstitute.org")
 		.inferHtmlResources()
@@ -23,7 +25,7 @@ class launchAnalysis extends Simulation {
 	val submissionBody = """{"methodConfigurationNamespace":"alex_methods","methodConfigurationName":"cancer_exome_pipeline_v2","entityType":"pair_set","entityName":"pair_set_1","expression":"this.pairs"}"""
 
 	val scn = scenario(s"launchAnalysis_${numUsers}")
-		.feed(tsv("{LIST_OF_WORKSPACE_NAMES}")) //feed the list of clones created for this test
+		.feed(tsv(workspaceListTSV)) //feed the list of clones created for this test
 		.exec(http("submission_request")
 			.post("/api/workspaces/broad-dsde-dev/${workspaceName}/submissions")
 			.headers(headers)
