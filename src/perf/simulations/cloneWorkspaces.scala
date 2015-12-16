@@ -15,6 +15,8 @@ class cloneWorkspaces extends Simulation {
 	val accessToken = lines.next
 	val numUsers = lines.next.toInt
 
+	val workspaceToClone = System.getProperty("wsToClone", "Workshopish")
+
 	//function to help us generate TSVs per-run
 	def fileGenerator(f: java.io.File)(op: java.io.PrintWriter => Unit) {
 	  val p = new java.io.PrintWriter(f)
@@ -54,7 +56,7 @@ class cloneWorkspaces extends Simulation {
 	val scn = scenario(s"cloneWorkspaces_${numUsers}")
 		.feed(tsv(s"../user-files/data/cloneWorkspaces_${runID}.tsv")) //the tsv from generateTSV
 		.exec(http("clone_request")
-			.post("/api/workspaces/broad-dsde-dev/Dec8thish/clone") //our workshop model workspace
+			.post(stringToExpression(s"/api/workspaces/broad-dsde-dev/$workspaceToClone/clone")) //our workshop model workspace
 			.headers(headers)
 			.body(StringBody("${workspaceJson}"))) //feeds off of the workspaceJson column in the tsv file
 

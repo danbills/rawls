@@ -13,6 +13,8 @@ class launchAnalysis extends Simulation {
 	val numUsers = lines.next.toInt
 
 	val workspaceListTSV = System.getProperty("workspaceList")
+	val mcName = System.getProperty("mcName", "alex_methods")
+	val mcNamespace = System.getProperty("mcNamespace", "cancer_exome_pipeline_v2")
 
 	val httpProtocol = http
 		.baseURL("https://rawls.dsde-dev.broadinstitute.org")
@@ -22,7 +24,7 @@ class launchAnalysis extends Simulation {
 	val headers = Map("Authorization" -> s"Bearer ${accessToken}",
 						"Content-Type" -> "application/json") 
 
-	val submissionBody = """{"methodConfigurationNamespace":"alex_methods","methodConfigurationName":"cancer_exome_pipeline_v2","entityType":"pair_set","entityName":"pair_set_1","expression":"this.pairs"}"""
+	val submissionBody = s"""{"methodConfigurationNamespace":"$mcNamespace","methodConfigurationName":"$mcName","entityType":"pair_set","entityName":"pair_set_1","expression":"this.pairs"}"""
 
 	val scn = scenario(s"launchAnalysis_${numUsers}")
 		.feed(tsv(workspaceListTSV)) //feed the list of clones created for this test

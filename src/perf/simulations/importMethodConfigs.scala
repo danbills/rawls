@@ -7,13 +7,15 @@ import io.gatling.core.Predef._
 import io.gatling.http.Predef._
 import io.gatling.jdbc.Predef._
 
-class importMethod extends Simulation {
+class importMethodConfigs extends Simulation {
 
   //Helpers to set up the run
 
   val lines = scala.io.Source.fromFile("../user-files/config.txt").getLines
   val accessToken = lines.next
   val numUsers = lines.next.toInt
+
+  val workspaceListTSV = System.getProperty("workspaceList")
 
   def fileGenerator(f: java.io.File)(op: java.io.PrintWriter => Unit) {
     val p = new java.io.PrintWriter(f)
@@ -33,11 +35,11 @@ class importMethod extends Simulation {
     "Content-Type" -> "application/json")
 
   val scn = scenario(s"importConfig_request_${numUsers}")
-    .feed(tsv(s"../user-files/data/createWorkspaces_NAMES_gatling_creation_1123642607.tsv"))
+    .feed(tsv(workspaceListTSV)) //feed the list of workspaces to import into
     .exec(http("importConfig_request")
     .post("/api/methodconfigs/copyFromMethodRepo")
     .headers(headers)
-    .body(StringBody("""{"methodRepoNamespace": "broad-dsde-dev","methodRepoName": "EddieFastaCounterPUBLISH","methodRepoSnapshotId": 1,"destination": {"name": "FastaCounter_gatling5","namespace": "broad-dsde-dev","workspaceName": {"namespace": "broad-dsde-dev","name": "${workspaceName}"}}}""")).asJSON)
+    .body(StringBody("""{"methodRepoNamespace": "alex_methods","methodRepoName": "cancer_exome_pipeline_v2","methodRepoSnapshotId": 1,"destination": {"name": "GatlingImportedMethod","namespace": "broad-dsde-dev","workspaceName": {"namespace": "broad-dsde-dev","name": "${workspaceName}"}}}""")).asJSON)
 
   //NOTE: be sure to re-configure time if needed
   setUp(scn.inject(rampUsers(numUsers) over(10 seconds))).protocols(httpProtocol)
