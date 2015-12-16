@@ -12,6 +12,8 @@ class launchAnalysis extends Simulation {
 	val accessToken = lines.next
 	val numUsers = lines.next.toInt
 
+	//waaaaooooo
+
 	val httpProtocol = http
 		.baseURL("https://rawls.dsde-dev.broadinstitute.org")
 		.inferHtmlResources()

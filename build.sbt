@@ -1,5 +1,7 @@
 import sbt.ExclusionRule
 
+enablePlugins(GatlingPlugin)
+
 name          := "rawls"
 
 organization  := "org.broadinstitute"
@@ -46,7 +48,9 @@ libraryDependencies ++= {
     "org.broadinstitute.dsde.vault" %% "vault-common" % "0.1-15-bf74315",
     ("com.google.apis" % "google-api-services-storage" % "v1-rev30-1.20.0").exclude("com.google.guava", "guava-jdk5"),
     ("com.google.apis" % "google-api-services-compute" % "v1-rev72-1.20.0"),
-    ("com.google.apis" % "google-api-services-admin-directory" % "directory_v1-rev53-1.20.0")
+    ("com.google.apis" % "google-api-services-admin-directory" % "directory_v1-rev53-1.20.0"),
+    "io.gatling.highcharts" % "gatling-charts-highcharts" % "2.1.7" % "test",
+    "io.gatling"            % "gatling-test-framework"    % "2.1.7" % "test"
   )
 }
 
@@ -74,7 +78,8 @@ lazy val rawls = project.in(file("."))
   .settings(inConfig(IntegrationTest)(Defaults.testTasks): _*)
   .settings(
     testOptions in Test ++= Seq(Tests.Filter(s => !isIntegrationTest(s))),
-    testOptions in IntegrationTest := Seq(Tests.Filter(s => isIntegrationTest(s)))
+    testOptions in IntegrationTest := Seq(Tests.Filter(s => isIntegrationTest(s))),
+    scalaSource in Gatling := baseDirectory.value / "src" / "perf" / "scala"
   )
 
 // SLF4J initializes itself upon the first logging call.  Because sbt
