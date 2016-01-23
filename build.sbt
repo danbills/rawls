@@ -40,6 +40,8 @@ libraryDependencies ++= {
     "com.orientechnologies" % "orientdb-client" % orientV,
     "com.tinkerpop.gremlin" % "gremlin-java" % "2.6.0",
     "org.apache.commons" % "commons-jexl" % "2.1.1",
+    "com.thinkaurelius.titan" % "titan-core" % "1.0.0",
+    "com.thinkaurelius.titan" % "titan-cassandra" % "1.0.0",
     "rhino" % "js" % "1.7R2",
     ("org.broadinstitute" %% "cromwell" % "0.9")
       excludeAll (ExclusionRule(organization = "com.gettyimages"), ExclusionRule(organization = "org.webjars")) ,
