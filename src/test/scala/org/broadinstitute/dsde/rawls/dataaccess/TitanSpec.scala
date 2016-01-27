@@ -5,7 +5,7 @@ import java.util.function.Consumer
 import com.thinkaurelius.titan.core.schema.ConsistencyModifier
 import com.thinkaurelius.titan.graphdb.database.StandardTitanGraph
 import com.thinkaurelius.titan.graphdb.tinkerpop.{TitanBlueprintsTransaction, TitanBlueprintsGraph}
-import org.apache.tinkerpop.gremlin.structure.{Vertex, Transaction, Direction, Graph}
+import org.apache.tinkerpop.gremlin.structure._
 import org.scalatest.{Matchers, FlatSpec}
 
 import scala.collection.JavaConversions._
@@ -133,26 +133,51 @@ class TitanSpec extends FlatSpec with Matchers {
     t2.join()
   }
 
-  it should "aaaaaaaa" in {
+  it should "store multiple values and metaprops for a property and return them all" in {
     val tg = setupTitanGraph()
     val tx = tg.tx()
     tx.open()
     val v = tg.traversal().V().has("name", "myworkspace").next()
-    v.property("single", "foo")
+    val prop = v.property("single", "foo")
+    prop.property("uuid", "uu12345")
+    prop.property("ancestor", "-1")
+    prop.property("timestamp", 12345)
+    prop.property("op", "update")
+    prop.property("author", "barryo")
     //v.property("list", List(1,2))
     tx.commit()
 
     tx.open()
     val v2 = tg.traversal().V().has("name", "myworkspace").next()
-    v2.property("single", "bar")
+    val prop2 = v2.property("single", "bar")
+    prop2.property("uuid", "uu56789")
+    prop2.property("ancestor", "uu12345")
+    prop2.property("timestamp", 12346)
+    prop2.property("op", "update")
+    prop2.property("author", "jbiden")
     //v2.property("list", List(3,4))
     tx.commit()
 
     tx.open()
     val v3 = tg.traversal().V().has("name", "myworkspace").next()
-    println("single: " + v3.properties("single").toList )
+
+    val foo = v3.properties("single").map({ p : VertexProperty[Nothing] => p.properties().toList}).toList
+
+    println("single: " + v3.properties("single").toList + " " + foo )
    //println("list: " + println(v3.property("list").value()))
     tx.commit()
+
+    //
   }
+
+  /*
+  thoughts on metaproperties
+  - uuid
+  - author
+  - timestamp
+  - some indication of what the operation was, like "add list elem"
+  - some indication of what this property thinks its ancestor was
+  this should be enough to reconstruct history
+   */
 
 }
