@@ -29,14 +29,18 @@ class TitanSpec extends FlatSpec with Matchers {
 
   def setupTitanGraph(): Graph = {
     val factory = TitanFactory.build()
+
+    //NOTE: can also set cardinality per-property on .property calls
     val tg: Graph = factory
       .set("storage.backend", "embeddedcassandra")
       .set("storage.conf-file", "file:///c:/code/rawls/cassandra.yaml")
+      .set("schema.default", "org.broadinstitute.dsde.rawls.dataaccess.TitanSchema")
       .open
 
     tg.tx().onReadWrite(Transaction.READ_WRITE_BEHAVIOR.MANUAL)
     tg.tx().onClose(Transaction.CLOSE_BEHAVIOR.MANUAL)
 
+    /*
     val mgmt = tg.asInstanceOf[TitanGraph].openManagement()
 
     val beep = mgmt.makePropertyKey("beep").dataType(classOf[String]).make() //.cardinality(Cardinality.SINGLE)
@@ -44,7 +48,9 @@ class TitanSpec extends FlatSpec with Matchers {
 
     //val label = mgmt.makeVertexLabel("Workspace").make()
     mgmt.setConsistency(index, ConsistencyModifier.LOCK)
+
     mgmt.commit()
+    */
 
     /* NOTE: Titan has vertex/edge labels instead of classes.
     You can either allow them to be made implicitly (on-the-fly), or .set("schema.default", "none")
@@ -125,6 +131,28 @@ class TitanSpec extends FlatSpec with Matchers {
 
     t1.join()
     t2.join()
+  }
+
+  it should "aaaaaaaa" in {
+    val tg = setupTitanGraph()
+    val tx = tg.tx()
+    tx.open()
+    val v = tg.traversal().V().has("name", "myworkspace").next()
+    v.property("single", "foo")
+    //v.property("list", List(1,2))
+    tx.commit()
+
+    tx.open()
+    val v2 = tg.traversal().V().has("name", "myworkspace").next()
+    v2.property("single", "bar")
+    //v2.property("list", List(3,4))
+    tx.commit()
+
+    tx.open()
+    val v3 = tg.traversal().V().has("name", "myworkspace").next()
+    println("single: " + v3.properties("single").toList )
+   //println("list: " + println(v3.property("list").value()))
+    tx.commit()
   }
 
 }
