@@ -7,7 +7,8 @@ trait AllComponents
     with RawlsBillingProjectComponent
     with WorkspaceComponent
     with EntityComponent
-    with AttributeComponent {
+    with AttributeComponent
+    with MethodConfigurationComponent {
 
   this: DriverComponent =>
 
@@ -23,5 +24,6 @@ trait AllComponents
     workspaceAttributeQuery.schema ++
     workspaceAccessQuery.schema ++
     entityQuery.schema ++
-    entityAttributeQuery.schema
+    entityAttributeQuery.schema ++
+    methodConfigurationQuery.schema
 }
