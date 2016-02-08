@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.rawls.dataaccess.slick
 
 import org.scalatest.{BeforeAndAfterAll, Matchers, FlatSpec}
 
-class MethodConfigurationComponentSpec extends FlatSpec with Matchers with TestDriverComponent with MethodConfigurationComponent with BeforeAndAfterAll {
+class MethodConfigurationComponentSpec extends TestDriverComponent {
   import driver.api._
 
   val schemas = methodConfigurationQuery.schema ++
