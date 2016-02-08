@@ -3,17 +3,6 @@ package org.broadinstitute.dsde.rawls.dataaccess.slick
 import org.scalatest.{BeforeAndAfterAll, Matchers, FlatSpec}
 
 class MethodConfigurationComponentSpec extends TestDriverComponent {
-  import driver.api._
-
-  val schemas = methodConfigurationQuery.schema ++
-    methodConfigurationInputQuery.schema //++
-//    methodConfigurationOutputQuery.schema ++
-//    methodConfigurationPrereqQuery.schema
-
-  override def beforeAll: Unit = {
-    runAndWait(schemas.create)
-  }
-
   "MethodConfigurationComponent" should "create, load, list and delete" in {
 
     val methodConfig = MethodConfigurationRecord(1, "test", "foo", "1", "sample", "testns", "testname", 1)
