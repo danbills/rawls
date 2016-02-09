@@ -25,5 +25,8 @@ trait AllComponents
     workspaceAccessQuery.schema ++
     entityQuery.schema ++
     entityAttributeQuery.schema ++
-    methodConfigurationQuery.schema
+    methodConfigurationQuery.schema ++
+    methodConfigurationInputQuery.schema ++
+    methodConfigurationOutputQuery.schema ++
+    methodConfigurationPrereqQuery.schema
 }
