@@ -112,22 +112,24 @@ class WorkspaceServiceSpec extends FlatSpec with ScalatestRouteTest with Matcher
     services.dataSource.inTransaction() { txn =>
 
       //Maybe this is a better approach:
-      val foob: IndexedSeq[Future[Future[PerRequestMessage]]] = 1 to 20 map { _ =>
+      //val foob: IndexedSeq[Future[Future[PerRequestMessage]]] =
+
+      val ctxFutures: Future[Traversable[WorkspaceContext]] = Future.traverse(1 to 20) { case _ =>
         services.workspaceService.createNewWorkspace(
           WorkspaceRequest("manyWorkspaces", UUID.randomUUID.toString, Some(manyWorkspaces.realmGroup), Map.empty), txn)
-      } map { fut =>
-        fut map { wsctx: WorkspaceContext =>
-          services.workspaceService.updateACL(wsctx.workspace.toWorkspaceName, Seq(
-            WorkspaceACLUpdate(manyWorkspaces.userOwner.userEmail.value, WorkspaceAccessLevels.Owner),
-            WorkspaceACLUpdate(manyWorkspaces.userWriter.userEmail.value, WorkspaceAccessLevels.Read),
-            WorkspaceACLUpdate(manyWorkspaces.userOwner.userEmail.value, WorkspaceAccessLevels.Write)
-          ))
-        }
       }
 
-      //TODO: Await on all of the above.
+      Await.result( ctxFutures flatMap { ctxList =>
+        Future.traverse(ctxList) { wsctx =>
+            services.workspaceService.updateACL(wsctx.workspace.toWorkspaceName, Seq(
+              WorkspaceACLUpdate(manyWorkspaces.userOwner.userEmail.value, WorkspaceAccessLevels.Owner),
+              WorkspaceACLUpdate(manyWorkspaces.userWriter.userEmail.value, WorkspaceAccessLevels.Read),
+              WorkspaceACLUpdate(manyWorkspaces.userOwner.userEmail.value, WorkspaceAccessLevels.Write)
+            ))
+        }
+      }, Duration.Inf )
 
-
+      
       val fnarr = Await.result( services.userService.removeGroupMembers(
         manyWorkspaces.realmGroup,
         RawlsGroupMemberList(Some(Seq(manyWorkspaces.userReader.userEmail.value)), None, None, None)
