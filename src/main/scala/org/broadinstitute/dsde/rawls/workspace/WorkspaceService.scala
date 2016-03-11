@@ -38,8 +38,8 @@ import org.broadinstitute.dsde.rawls.model.ExecutionJsonSupport.{ActiveSubmissio
 
 import scala.concurrent.duration._
 /**
- * Created by dvoet on 4/27/15.
- */
+  * Created by dvoet on 4/27/15.
+  */
 
 object WorkspaceService {
   sealed trait WorkspaceServiceMessage
@@ -327,39 +327,39 @@ class WorkspaceService(protected val userInfo: UserInfo, dataSource: DataSource,
           //Build a map from user/group ID to associated access level.
           val aclList: Map[String, WorkspaceAccessLevel] = workspaceContext.workspace.accessLevels.toSeq.sortBy(_._1)
             .foldLeft(Map.empty[String, WorkspaceAccessLevel])({ case (currentMap, (level, groupRef)) =>
-            //groupRef = group representing this access level for the workspace
-            withRawlsGroup(groupRef, txn) { accessGroup =>
+              //groupRef = group representing this access level for the workspace
+              withRawlsGroup(groupRef, txn) { accessGroup =>
 
-              //pairs of user emails -> this access level
-              val userLevels = accessGroup.users.map {
-                withRawlsUser(_, txn) { user =>
-                  (user.userEmail.value, level)
+                //pairs of user emails -> this access level
+                val userLevels = accessGroup.users.map {
+                  withRawlsUser(_, txn) { user =>
+                    (user.userEmail.value, level)
+                  }
                 }
-              }
 
-              //pairs of group emails -> this access level
-              val subgroupLevels = accessGroup.subGroups.map {
-                withRawlsGroup(_, txn) { subGroup =>
-                  (subGroup.groupEmail.value, level)
+                //pairs of group emails -> this access level
+                val subgroupLevels = accessGroup.subGroups.map {
+                  withRawlsGroup(_, txn) { subGroup =>
+                    (subGroup.groupEmail.value, level)
+                  }
                 }
-              }
 
-              //fold 'em into the map
-              currentMap ++ userLevels ++ subgroupLevels
-            }
-          })
+                //fold 'em into the map
+                currentMap ++ userLevels ++ subgroupLevels
+              }
+            })
           Future.successful( RequestComplete(StatusCodes.OK, aclList) )
         }
       }
     }
 
   /**
-   * updates acls for a workspace
-   * @param workspaceName
-   * @param aclUpdates changes to make, if an entry already exists it will be changed to the level indicated in this
-   *                   Seq, use NoAccess to remove an entry, all other preexisting accesses remain unchanged
-   * @return
-   */
+    * updates acls for a workspace
+    * @param workspaceName
+    * @param aclUpdates changes to make, if an entry already exists it will be changed to the level indicated in this
+    *                   Seq, use NoAccess to remove an entry, all other preexisting accesses remain unchanged
+    * @return
+    */
   def updateACL(workspaceName: WorkspaceName, aclUpdates: Seq[WorkspaceACLUpdate]): Future[PerRequestMessage] =
     dataSource.inFutureTransaction(writeLocks=Set(workspaceName)) { txn =>
       withWorkspaceContext(workspaceName, txn) { workspaceContext =>
@@ -665,27 +665,27 @@ class WorkspaceService(protected val userInfo: UserInfo, dataSource: DataSource,
     }
 
   /**
-   * Applies the sequence of operations in order to the entity.
-   *
-   * @param entity to update
-   * @param operations sequence of operations
-   * @throws AttributeNotFoundException when removing from a list attribute that does not exist
-   * @throws AttributeUpdateOperationException when adding or removing from an attribute that is not a list
-   * @return the updated entity
-   */
+    * Applies the sequence of operations in order to the entity.
+    *
+    * @param entity to update
+    * @param operations sequence of operations
+    * @throws AttributeNotFoundException when removing from a list attribute that does not exist
+    * @throws AttributeUpdateOperationException when adding or removing from an attribute that is not a list
+    * @return the updated entity
+    */
   def applyOperationsToEntity(entity: Entity, operations: Seq[AttributeUpdateOperation]): Entity = {
     entity.copy(attributes = applyAttributeUpdateOperations(entity, operations))
   }
 
   /**
-   * Applies the sequence of operations in order to the workspace.
-   *
-   * @param workspace to update
-   * @param operations sequence of operations
-   * @throws AttributeNotFoundException when removing from a list attribute that does not exist
-   * @throws AttributeUpdateOperationException when adding or removing from an attribute that is not a list
-   * @return the updated entity
-   */
+    * Applies the sequence of operations in order to the workspace.
+    *
+    * @param workspace to update
+    * @param operations sequence of operations
+    * @throws AttributeNotFoundException when removing from a list attribute that does not exist
+    * @throws AttributeUpdateOperationException when adding or removing from an attribute that is not a list
+    * @return the updated entity
+    */
   def applyOperationsToWorkspace(workspace: Workspace, operations: Seq[AttributeUpdateOperation]): Workspace = {
     workspace.copy(attributes = applyAttributeUpdateOperations(workspace, operations))
   }
@@ -941,25 +941,25 @@ class WorkspaceService(protected val userInfo: UserInfo, dataSource: DataSource,
   }
 
   /**
-   * This is the function that would get called if we had a validate method config endpoint.
-   */
+    * This is the function that would get called if we had a validate method config endpoint.
+    */
   def validateMethodConfig(workspaceName: WorkspaceName,
-    methodConfigurationNamespace: String, methodConfigurationName: String,
-    entityType: String, entityName: String, userInfo: UserInfo): Future[PerRequestMessage] = {
-      dataSource.inFutureTransaction(readLocks=Set(workspaceName)) { txn =>
-        withWorkspaceContextAndPermissions(workspaceName, WorkspaceAccessLevels.Read, txn) { workspaceContext =>
-          withMethodConfig(workspaceContext, methodConfigurationNamespace, methodConfigurationName, txn) { methodConfig =>
-            withMethod(methodConfig.methodRepoMethod.methodNamespace, methodConfig.methodRepoMethod.methodName, methodConfig.methodRepoMethod.methodVersion, userInfo) { method =>
-              withEntity(workspaceContext, entityType, entityName, txn) { entity =>
-                withWdl(method) { wdl =>
-                  Future {
-                    MethodConfigResolver.resolveInputsOrGatherErrors(workspaceContext, methodConfig, entity, wdl) match {
-                      case Left(failures) => RequestComplete(StatusCodes.OK, failures)
-                      case Right(unpacked) =>
-                        val idation = executionServiceDAO.validateWorkflow(wdl, MethodConfigResolver.propertiesToWdlInputs(unpacked), userInfo)
-                        RequestComplete(StatusCodes.OK, idation)
-                    }
+                           methodConfigurationNamespace: String, methodConfigurationName: String,
+                           entityType: String, entityName: String, userInfo: UserInfo): Future[PerRequestMessage] = {
+    dataSource.inFutureTransaction(readLocks=Set(workspaceName)) { txn =>
+      withWorkspaceContextAndPermissions(workspaceName, WorkspaceAccessLevels.Read, txn) { workspaceContext =>
+        withMethodConfig(workspaceContext, methodConfigurationNamespace, methodConfigurationName, txn) { methodConfig =>
+          withMethod(methodConfig.methodRepoMethod.methodNamespace, methodConfig.methodRepoMethod.methodName, methodConfig.methodRepoMethod.methodVersion, userInfo) { method =>
+            withEntity(workspaceContext, entityType, entityName, txn) { entity =>
+              withWdl(method) { wdl =>
+                Future {
+                  MethodConfigResolver.resolveInputsOrGatherErrors(workspaceContext, methodConfig, entity, wdl) match {
+                    case Left(failures) => RequestComplete(StatusCodes.OK, failures)
+                    case Right(unpacked) =>
+                      val idation = executionServiceDAO.validateWorkflow(wdl, MethodConfigResolver.propertiesToWdlInputs(unpacked), userInfo)
+                      RequestComplete(StatusCodes.OK, idation)
                   }
+                }
               }
             }
           }
@@ -1113,7 +1113,7 @@ class WorkspaceService(protected val userInfo: UserInfo, dataSource: DataSource,
   }
 
   /**
-   * Munges together the output of Cromwell's /outputs and /logs endpoints, grouping them by task name */
+    * Munges together the output of Cromwell's /outputs and /logs endpoints, grouping them by task name */
   private def mergeWorkflowOutputs(execOuts: ExecutionServiceOutputs, execLogs: ExecutionServiceLogs, workflowId: String): PerRequestMessage = {
     val outs = execOuts.outputs
     val logs = execLogs.logs
@@ -1128,7 +1128,7 @@ class WorkspaceService(protected val userInfo: UserInfo, dataSource: DataSource,
   }
 
   /**
-   * Get the list of outputs for a given workflow in this submission */
+    * Get the list of outputs for a given workflow in this submission */
   def workflowOutputs(workspaceName: WorkspaceName, submissionId: String, workflowId: String) = {
     dataSource.inFutureTransaction(readLocks=Set(workspaceName)) { txn =>
       withWorkspaceContextAndPermissions(workspaceName, WorkspaceAccessLevels.Read, txn) { workspaceContext =>
@@ -1146,7 +1146,7 @@ class WorkspaceService(protected val userInfo: UserInfo, dataSource: DataSource,
               case (Failure(outputsFailure), Failure(logsFailure)) =>
                 throw new RawlsExceptionWithErrorReport(errorReport = ErrorReport(StatusCodes.BadGateway, s"Unable to get outputs and unable to get logs for ${submissionId}.",
                   Seq(executionServiceDAO.toErrorReport(outputsFailure),executionServiceDAO.toErrorReport(logsFailure))))
-              }
+            }
             }
           }
         }
@@ -1368,44 +1368,35 @@ class WorkspaceService(protected val userInfo: UserInfo, dataSource: DataSource,
       containerDAO.workspaceDAO.loadContext(workspaceName, txn) match {
         case Some(_) => Future.failed(new RawlsExceptionWithErrorReport(errorReport = ErrorReport(StatusCodes.Conflict, s"Workspace ${workspaceRequest.namespace}/${workspaceRequest.name} already exists")))
         case None =>
-          createNewWorkspace(workspaceRequest, txn) map { workspaceContext =>
-            op(workspaceContext)
+          val workspaceId = UUID.randomUUID.toString
+          gcsDAO.setupWorkspace(userInfo, workspaceRequest.namespace, workspaceId, workspaceName, workspaceRequest.realm) map { googleWorkspaceInfo =>
+            val currentDate = DateTime.now
+
+            def saveAndMap(level: WorkspaceAccessLevel, group: RawlsGroup): (WorkspaceAccessLevel, RawlsGroupRef) = {
+              containerDAO.authDAO.saveGroup(group, txn)
+              level -> group
+            }
+
+            val accessGroups = googleWorkspaceInfo.accessGroupsByLevel.map { case (a, g) => saveAndMap(a, g) }
+            val intersectionGroups = googleWorkspaceInfo.intersectionGroupsByLevel map { _.map { case (a, g) => saveAndMap(a, g) } }
+
+            val workspace = Workspace(
+              namespace = workspaceRequest.namespace,
+              name = workspaceRequest.name,
+              realm = workspaceRequest.realm,
+              workspaceId = workspaceId,
+              bucketName = googleWorkspaceInfo.bucketName,
+              createdDate = currentDate,
+              lastModified = currentDate,
+              createdBy = userInfo.userEmail,
+              attributes = workspaceRequest.attributes,
+              accessLevels = accessGroups,
+              realmACLs = intersectionGroups getOrElse accessGroups
+            )
+
+            op(containerDAO.workspaceDAO.save(workspace, txn))
           }
       }
-    }
-  }
-
-  //TODO HE: this seems insane.
-  def createNewWorkspace(workspaceRequest: WorkspaceRequest, txn: RawlsTransaction): Future[WorkspaceContext] = {
-    val workspaceId = UUID.randomUUID.toString
-    gcsDAO.setupWorkspace(userInfo, workspaceRequest.namespace, workspaceId, workspaceRequest.toWorkspaceName, workspaceRequest.realm) map { googleWorkspaceInfo =>
-      val currentDate = DateTime.now
-
-      def saveAndMap(level: WorkspaceAccessLevel, group: RawlsGroup): (WorkspaceAccessLevel, RawlsGroupRef) = {
-        containerDAO.authDAO.saveGroup(group, txn)
-        level -> group
-      }
-
-      val accessGroups = googleWorkspaceInfo.accessGroupsByLevel.map { case (a, g) => saveAndMap(a, g) }
-      val intersectionGroups = googleWorkspaceInfo.intersectionGroupsByLevel map {
-        _.map { case (a, g) => saveAndMap(a, g) }
-      }
-
-      val workspace = Workspace(
-        namespace = workspaceRequest.namespace,
-        name = workspaceRequest.name,
-        realm = workspaceRequest.realm,
-        workspaceId = workspaceId,
-        bucketName = googleWorkspaceInfo.bucketName,
-        createdDate = currentDate,
-        lastModified = currentDate,
-        createdBy = userInfo.userEmail,
-        attributes = workspaceRequest.attributes,
-        accessLevels = accessGroups,
-        realmACLs = intersectionGroups getOrElse accessGroups
-      )
-
-      containerDAO.workspaceDAO.save(workspace, txn)
     }
   }
 
@@ -1438,7 +1429,7 @@ class WorkspaceService(protected val userInfo: UserInfo, dataSource: DataSource,
 
   private def withWorkspaceContext(workspaceName: WorkspaceName, txn: RawlsTransaction)(op: (WorkspaceContext) => Future[PerRequestMessage]) = {
     assert( txn.readLocks.contains(workspaceName) || txn.writeLocks.contains(workspaceName),
-            s"Attempting to use context on workspace $workspaceName but it's not read or write locked! Add it to inTransaction or inFutureTransaction")
+      s"Attempting to use context on workspace $workspaceName but it's not read or write locked! Add it to inTransaction or inFutureTransaction")
     containerDAO.workspaceDAO.loadContext(workspaceName, txn) match {
       case None => Future.failed(new RawlsExceptionWithErrorReport(errorReport = ErrorReport(StatusCodes.NotFound, noSuchWorkspaceMessage(workspaceName))))
       case Some(workspaceContext) => op(workspaceContext)
@@ -1580,7 +1571,7 @@ class WorkspaceService(protected val userInfo: UserInfo, dataSource: DataSource,
   }
 
   private def withSubmissionParameters(workspaceName: WorkspaceName, submissionRequest: SubmissionRequest)
-   ( op: (RawlsTransaction, WorkspaceContext, String, SubmissionValidationHeader, Seq[SubmissionValidationEntityInputs], Seq[SubmissionValidationEntityInputs]) => Future[PerRequestMessage]): Future[PerRequestMessage] = {
+                                      ( op: (RawlsTransaction, WorkspaceContext, String, SubmissionValidationHeader, Seq[SubmissionValidationEntityInputs], Seq[SubmissionValidationEntityInputs]) => Future[PerRequestMessage]): Future[PerRequestMessage] = {
     dataSource.inFutureTransaction(writeLocks=Set(workspaceName)) { txn =>
       withWorkspaceContextAndPermissions(workspaceName, WorkspaceAccessLevels.Write, txn) { workspaceContext =>
         withMethodConfig(workspaceContext, submissionRequest.methodConfigurationNamespace, submissionRequest.methodConfigurationName, txn) { methodConfig =>
