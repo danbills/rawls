@@ -1368,35 +1368,44 @@ class WorkspaceService(protected val userInfo: UserInfo, dataSource: DataSource,
       containerDAO.workspaceDAO.loadContext(workspaceName, txn) match {
         case Some(_) => Future.failed(new RawlsExceptionWithErrorReport(errorReport = ErrorReport(StatusCodes.Conflict, s"Workspace ${workspaceRequest.namespace}/${workspaceRequest.name} already exists")))
         case None =>
-          val workspaceId = UUID.randomUUID.toString
-          gcsDAO.setupWorkspace(userInfo, workspaceRequest.namespace, workspaceId, workspaceName, workspaceRequest.realm) map { googleWorkspaceInfo =>
-            val currentDate = DateTime.now
-
-            def saveAndMap(level: WorkspaceAccessLevel, group: RawlsGroup): (WorkspaceAccessLevel, RawlsGroupRef) = {
-              containerDAO.authDAO.saveGroup(group, txn)
-              level -> group
-            }
-
-            val accessGroups = googleWorkspaceInfo.accessGroupsByLevel.map { case (a, g) => saveAndMap(a, g) }
-            val intersectionGroups = googleWorkspaceInfo.intersectionGroupsByLevel map { _.map { case (a, g) => saveAndMap(a, g) } }
-
-            val workspace = Workspace(
-              namespace = workspaceRequest.namespace,
-              name = workspaceRequest.name,
-              realm = workspaceRequest.realm,
-              workspaceId = workspaceId,
-              bucketName = googleWorkspaceInfo.bucketName,
-              createdDate = currentDate,
-              lastModified = currentDate,
-              createdBy = userInfo.userEmail,
-              attributes = workspaceRequest.attributes,
-              accessLevels = accessGroups,
-              realmACLs = intersectionGroups getOrElse accessGroups
-            )
-
-            op(containerDAO.workspaceDAO.save(workspace, txn))
+          createNewWorkspace(workspaceRequest, txn) map { workspaceContext =>
+            op(workspaceContext)
           }
       }
+    }
+  }
+
+  //TODO HE: this seems insane.
+  def createNewWorkspace(workspaceRequest: WorkspaceRequest, txn: RawlsTransaction): Future[WorkspaceContext] = {
+    val workspaceId = UUID.randomUUID.toString
+    gcsDAO.setupWorkspace(userInfo, workspaceRequest.namespace, workspaceId, workspaceRequest.toWorkspaceName, workspaceRequest.realm) map { googleWorkspaceInfo =>
+      val currentDate = DateTime.now
+
+      def saveAndMap(level: WorkspaceAccessLevel, group: RawlsGroup): (WorkspaceAccessLevel, RawlsGroupRef) = {
+        containerDAO.authDAO.saveGroup(group, txn)
+        level -> group
+      }
+
+      val accessGroups = googleWorkspaceInfo.accessGroupsByLevel.map { case (a, g) => saveAndMap(a, g) }
+      val intersectionGroups = googleWorkspaceInfo.intersectionGroupsByLevel map {
+        _.map { case (a, g) => saveAndMap(a, g) }
+      }
+
+      val workspace = Workspace(
+        namespace = workspaceRequest.namespace,
+        name = workspaceRequest.name,
+        realm = workspaceRequest.realm,
+        workspaceId = workspaceId,
+        bucketName = googleWorkspaceInfo.bucketName,
+        createdDate = currentDate,
+        lastModified = currentDate,
+        createdBy = userInfo.userEmail,
+        attributes = workspaceRequest.attributes,
+        accessLevels = accessGroups,
+        realmACLs = intersectionGroups getOrElse accessGroups
+      )
+
+      containerDAO.workspaceDAO.save(workspace, txn)
     }
   }
 

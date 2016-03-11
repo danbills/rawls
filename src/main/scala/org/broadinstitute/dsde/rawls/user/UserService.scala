@@ -93,10 +93,10 @@ class UserService(protected val userInfo: UserInfo, dataSource: DataSource, prot
     case DeleteGroup(groupName) => pipe(deleteGroup(groupName)) to sender
     case AdminOverwriteGroupMembers(groupName, memberList) => adminOverwriteGroupMembers(groupName, memberList) to sender
     case OverwriteGroupMembers(groupName, memberList) => overwriteGroupMembers(groupName, memberList) to sender
-    case AdminAddGroupMembers(groupName, memberList) => asAdmin { updateGroupMembers(groupName, memberList, AddGroupMembersOp) } to sender
-    case AdminRemoveGroupMembers(groupName, memberList) => asAdmin { updateGroupMembers(groupName, memberList, RemoveGroupMembersOp) } to sender
-    case AddGroupMembers(groupName, memberList) => updateGroupMembers(groupName, memberList, AddGroupMembersOp) to sender
-    case RemoveGroupMembers(groupName, memberList) => updateGroupMembers(groupName, memberList, RemoveGroupMembersOp) to sender
+    case AdminAddGroupMembers(groupName, memberList) => asAdmin { addGroupMembers(groupName, memberList) } to sender
+    case AdminRemoveGroupMembers(groupName, memberList) => asAdmin { removeGroupMembers(groupName, memberList) } to sender
+    case AddGroupMembers(groupName, memberList) => addGroupMembers(groupName, memberList) to sender
+    case RemoveGroupMembers(groupName, memberList) => removeGroupMembers(groupName, memberList) to sender
     case SynchronizeGroupMembers(groupRef) => synchronizeGroupMembers(groupRef) to sender
   }
 
@@ -414,6 +414,14 @@ class UserService(protected val userInfo: UserInfo, dataSource: DataSource, prot
     }
   }
 
+  def addGroupMembers(groupRef: RawlsGroupRef, memberList:RawlsGroupMemberList) : Future[PerRequestMessage] = {
+    updateGroupMembers(groupRef, memberList, AddGroupMembersOp)
+  }
+
+  def removeGroupMembers(groupRef: RawlsGroupRef, memberList:RawlsGroupMemberList) : Future[PerRequestMessage] = {
+    updateGroupMembers(groupRef, memberList, RemoveGroupMembersOp)
+  }
+
   def updateGroupMembers(groupRef: RawlsGroupRef, memberList: RawlsGroupMemberList, operation: UpdateGroupMembersOp): Future[PerRequestMessage] = {
     dataSource.inFutureTransaction() { txn =>
       withGroup(groupRef, txn) { group =>
@@ -530,9 +538,10 @@ class UserService(protected val userInfo: UserInfo, dataSource: DataSource, prot
         Option(ErrorReport(StatusCodes.BadRequest, "Unable to update the following member(s)", exceptions.map(ErrorReport(_)).toSeq))
       }
     } flatMap { errorReport =>
-      Future.sequence(containerDAO.authDAO.findWorkspacesForGroup(group, txn).flatMap(ws =>
+      Future.sequence(containerDAO.authDAO.findWorkspacesForGroup(group, txn).flatMap({ ws =>
+        println("updating intersection groups for workspace " + ws.name)
         updateIntersectionGroupMembers(ws, txn)
-      ) :+ Future.successful(errorReport))
+      }) :+ Future.successful(errorReport))
     } map { errorReports =>
       val reports = errorReports.collect {
         case Some(report) => report
