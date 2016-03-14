@@ -39,15 +39,12 @@ class UserServiceSpec extends FlatSpec with ScalatestRouteTest with Matchers wit
     val userWriter = RawlsUser(UserInfo("writer-access", OAuth2BearerToken("token"), 123, "123456789876543212346"))
     val userReader = RawlsUser(UserInfo("reader-access", OAuth2BearerToken("token"), 123, "123456789876543212347"))
 
-    val realmGroup = makeRawlsGroup(s"SuperSecretRealmGroup", Set(userOwner, userReader, userWriter), Set.empty)
-
     val billingProject = RawlsBillingProject(RawlsBillingProjectName("manyWorkspaces"), Set(userOwner, userWriter, userReader), "cromwellBucketWhoCares")
 
     override def save(txn: RawlsTransaction): Unit = {
       authDAO.saveUser(userOwner, txn)
       authDAO.saveUser(userWriter, txn)
       authDAO.saveUser(userReader, txn)
-      authDAO.saveGroup(realmGroup, txn)
       try {
         billingDAO.saveProject(billingProject, txn)
       } catch {
@@ -106,12 +103,23 @@ class UserServiceSpec extends FlatSpec with ScalatestRouteTest with Matchers wit
   }
 
   "UserService" should "recalculate multiple intersection groups at once" in withUserService { services =>
+    //Have to make the realm group here authDAO.saveGroup() doesn't make the Googles :(
+    val realmGroupRef = RawlsGroupRef(RawlsGroupName(s"SuperSecretRealmGroup"))
+    Await.result({ services.userService.createGroup(realmGroupRef) }, Duration.Inf)
+    val realmGroupList = RawlsGroupMemberList(
+      Some(
+        Seq(
+          manyWorkspaces.userOwner.userEmail.value,
+          manyWorkspaces.userWriter.userEmail.value,
+          manyWorkspaces.userReader.userEmail.value)
+      ), None, None, None)
+    Await.result({ services.userService.overwriteGroupMembers(realmGroupRef, realmGroupList )}, Duration.Inf )
 
     //make a bunch of workspaces that are all in the same realm
     val workspaceList: Seq[Workspace] = (1 to 20) map { case _ =>
       Await.result({
         services.workspaceService.createWorkspace(
-          WorkspaceRequest("manyWorkspaces", UUID.randomUUID.toString, Some(manyWorkspaces.realmGroup), Map.empty)
+          WorkspaceRequest("manyWorkspaces", UUID.randomUUID.toString, Some(realmGroupRef), Map.empty)
         )}, Duration.Inf)
       match {
         case RequestCompleteWithLocation((status, workspace: Workspace), path) =>
@@ -122,22 +130,19 @@ class UserServiceSpec extends FlatSpec with ScalatestRouteTest with Matchers wit
 
     //populate acls for these workspaces, and wait for it to be done
     workspaceList foreach { workspace =>
-        println("updating acls for " + workspace.name)
       Await.result({
         services.workspaceService.updateACL(workspace.toWorkspaceName, Seq(
             WorkspaceACLUpdate(manyWorkspaces.userOwner.userEmail.value, WorkspaceAccessLevels.Owner),
-            WorkspaceACLUpdate(manyWorkspaces.userWriter.userEmail.value, WorkspaceAccessLevels.Read),
-            WorkspaceACLUpdate(manyWorkspaces.userOwner.userEmail.value, WorkspaceAccessLevels.Write)
+            WorkspaceACLUpdate(manyWorkspaces.userReader.userEmail.value, WorkspaceAccessLevels.Read),
+            WorkspaceACLUpdate(manyWorkspaces.userWriter.userEmail.value, WorkspaceAccessLevels.Write)
           ))
       }, Duration.Inf)
     }
 
-    println("populated")
-
     //the test itself: recalculating intersection groups for many workspaces after a realm change
     //shouldn't throw java.util.ConcurrentModificationException
     Await.result( services.userService.removeGroupMembers(
-      manyWorkspaces.realmGroup,
+      realmGroupRef,
       RawlsGroupMemberList(Some(Seq(manyWorkspaces.userReader.userEmail.value)), None, None, None)
     ), Duration.Inf )
   }

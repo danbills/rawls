@@ -539,7 +539,6 @@ class UserService(protected val userInfo: UserInfo, dataSource: DataSource, prot
       }
     } flatMap { errorReport =>
       Future.sequence(containerDAO.authDAO.findWorkspacesForGroup(group, txn).flatMap({ ws =>
-        println("updating intersection groups for workspace " + ws.name)
         updateIntersectionGroupMembers(ws, txn)
       }) :+ Future.successful(errorReport))
     } map { errorReports =>
