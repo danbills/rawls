@@ -115,8 +115,9 @@ class UserServiceSpec extends FlatSpec with ScalatestRouteTest with Matchers wit
       ), None, None, None)
     Await.result({ services.userService.overwriteGroupMembers(realmGroupRef, realmGroupList )}, Duration.Inf )
 
+    println("makespace")
     //make a bunch of workspaces that are all in the same realm
-    val workspaceList: Seq[Workspace] = (1 to 20) map { case _ =>
+    val workspaceList: Seq[Workspace] = (1 to 100) map { case _ =>
       Await.result({
         services.workspaceService.createWorkspace(
           WorkspaceRequest("manyWorkspaces", UUID.randomUUID.toString, Some(realmGroupRef), Map.empty)
@@ -127,6 +128,8 @@ class UserServiceSpec extends FlatSpec with ScalatestRouteTest with Matchers wit
           workspace
       }
     }
+
+    println("populating")
 
     //populate acls for these workspaces, and wait for it to be done
     workspaceList foreach { workspace =>
@@ -139,11 +142,26 @@ class UserServiceSpec extends FlatSpec with ScalatestRouteTest with Matchers wit
       }, Duration.Inf)
     }
 
+    println("testing")
+
     //the test itself: recalculating intersection groups for many workspaces after a realm change
     //shouldn't throw java.util.ConcurrentModificationException
     Await.result( services.userService.removeGroupMembers(
       realmGroupRef,
       RawlsGroupMemberList(Some(Seq(manyWorkspaces.userReader.userEmail.value)), None, None, None)
     ), Duration.Inf )
+
+    services.dataSource.inTransaction(readLocks = Set(workspaceList.head.toWorkspaceName)) { txn =>
+      val wsCtx = workspaceDAO.loadContext(workspaceList.head.toWorkspaceName, txn)
+      val realmACLReadRef = wsCtx.get.workspace.realmACLs.get(WorkspaceAccessLevels.Read).get
+      val rawlsGroup = authDAO.loadGroup(realmACLReadRef, txn).get
+
+      check {
+        assertResult(false, "Found removed user in workspace realm ACL") {
+          rawlsGroup.users.contains(manyWorkspaces.userReader)
+        }
+      }
+    }
+
   }
 }
