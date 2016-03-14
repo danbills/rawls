@@ -35,7 +35,7 @@ class UserServiceSpec extends FlatSpec with ScalatestRouteTest with Matchers wit
   val gcsDAO: MockGoogleServicesDAO = new MockGoogleServicesDAO("test")
 
   class ManyWorkspaces() extends TestData {
-    val userOwner = RawlsUser(UserInfo("owner-access", OAuth2BearerToken("token"), 123, "123456789876543212345"))
+    val userOwner = RawlsUser(userInfo)
     val userWriter = RawlsUser(UserInfo("writer-access", OAuth2BearerToken("token"), 123, "123456789876543212346"))
     val userReader = RawlsUser(UserInfo("reader-access", OAuth2BearerToken("token"), 123, "123456789876543212347"))
 
@@ -45,13 +45,7 @@ class UserServiceSpec extends FlatSpec with ScalatestRouteTest with Matchers wit
       authDAO.saveUser(userOwner, txn)
       authDAO.saveUser(userWriter, txn)
       authDAO.saveUser(userReader, txn)
-      try {
-        billingDAO.saveProject(billingProject, txn)
-      } catch {
-        case e:RuntimeException =>
-          println(e.getMessage)
-      }
-
+      billingDAO.saveProject(billingProject, txn)
     }
   }
 
@@ -117,7 +111,7 @@ class UserServiceSpec extends FlatSpec with ScalatestRouteTest with Matchers wit
 
     println("makespace")
     //make a bunch of workspaces that are all in the same realm
-    val workspaceList: Seq[Workspace] = (1 to 100) map { case _ =>
+    val workspaceList: Seq[Workspace] = (1 to 10) map { case _ =>
       Await.result({
         services.workspaceService.createWorkspace(
           WorkspaceRequest("manyWorkspaces", UUID.randomUUID.toString, Some(realmGroupRef), Map.empty)
@@ -148,17 +142,17 @@ class UserServiceSpec extends FlatSpec with ScalatestRouteTest with Matchers wit
     //shouldn't throw java.util.ConcurrentModificationException
     Await.result( services.userService.removeGroupMembers(
       realmGroupRef,
-      RawlsGroupMemberList(Some(Seq(manyWorkspaces.userReader.userEmail.value)), None, None, None)
+      RawlsGroupMemberList(Some(Seq(manyWorkspaces.userOwner.userEmail.value)), None, None, None)
     ), Duration.Inf )
 
     services.dataSource.inTransaction(readLocks = Set(workspaceList.head.toWorkspaceName)) { txn =>
       val wsCtx = workspaceDAO.loadContext(workspaceList.head.toWorkspaceName, txn)
-      val realmACLReadRef = wsCtx.get.workspace.realmACLs.get(WorkspaceAccessLevels.Read).get
+      val realmACLReadRef = wsCtx.get.workspace.realmACLs.get(WorkspaceAccessLevels.Owner).get
       val rawlsGroup = authDAO.loadGroup(realmACLReadRef, txn).get
 
       check {
         assertResult(false, "Found removed user in workspace realm ACL") {
-          rawlsGroup.users.contains(manyWorkspaces.userReader)
+          rawlsGroup.users.contains(manyWorkspaces.userOwner)
         }
       }
     }
