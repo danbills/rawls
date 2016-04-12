@@ -47,12 +47,12 @@ class AttributeComponentSpec extends TestDriverComponentWithFlatSpecAndMatchers 
     assertResult(4) { insertedIds.size }
 
     assertResult(Set(
-      AttributeRecord(insertedIds(0), "test", None, Option(9), None, None, Option(0)),
-      AttributeRecord(insertedIds(1), "test", None, Option(8), None, None, Option(1)),
-      AttributeRecord(insertedIds(2), "test", None, Option(7), None, None, Option(2)),
-      AttributeRecord(insertedIds(3), "test", None, Option(6), None, None, Option(3)))) {
+      AttributeRecord(0, "test", None, Option(9), None, None, Option(0)),
+      AttributeRecord(0, "test", None, Option(8), None, None, Option(1)),
+      AttributeRecord(0, "test", None, Option(7), None, None, Option(2)),
+      AttributeRecord(0, "test", None, Option(6), None, None, Option(3)))) {
 
-      runAndWait(attributeQuery.filter(_.id inSet insertedIds).result).toSet
+      runAndWait(attributeQuery.filter(_.id inSet insertedIds).result).map(_.copy(id=0)).toSet
     }
   }
 
