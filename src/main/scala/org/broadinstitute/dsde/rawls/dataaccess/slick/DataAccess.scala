@@ -14,6 +14,7 @@ trait DataAccess
   with MethodConfigurationComponent
   with SubmissionComponent
   with WorkflowComponent
+  with IdComponent
   with SlickExpressionParser {
 
   this: DriverComponent =>
@@ -45,5 +46,7 @@ trait DataAccess
       workflowQuery.schema ++
       workflowErrorQuery.schema ++
       workflowFailureQuery.schema ++
-      workflowMessageQuery.schema
+      workflowMessageQuery.schema ++
+      attributeIdQuery.schema ++
+      entityIdQuery.schema
 }
