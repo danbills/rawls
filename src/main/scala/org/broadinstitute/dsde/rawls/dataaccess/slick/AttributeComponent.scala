@@ -92,7 +92,9 @@ trait AttributeComponent {
     }
 
     def batchInsertAttributes(attributes: Seq[AttributeRecord]) = {
-      (attributeQuery returning attributeQuery.map(_.id)) ++= attributes
+      ((attributeQuery returning attributeQuery.map(_.id)) ++= attributes) map { ids =>
+        (ids zip attributes).map(x => x._2.copy(id = x._1))
+      }
     }
 
     private def marshalAttributeEntityReference(name: String, listIndex: Option[Int], ref: AttributeEntityReference, entityIdsByRef: Map[AttributeEntityReference, Long]): AttributeRecord = {

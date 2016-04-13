@@ -182,7 +182,7 @@ trait WorkspaceComponent {
 
     def deleteWorkspaceEntityAttributes(workspaceId: UUID) = {
       entityQuery.filter(_.workspaceId === workspaceId).result flatMap { recs =>
-        entityQuery.deleteEntityAttributes(recs.map(x => -1.toLong -> x).toMap)
+        entityQuery.deleteEntityAttributes(recs)
       }
     }
 
