@@ -69,12 +69,12 @@ trait AttributeComponent {
       entityQuery.findEntityByName(workspaceId, ref.entityType, ref.entityName).result.flatMap {
         case Seq() => throw new RawlsException(s"$ref not found in workspace $workspaceId")
         case Seq(entityRecord) =>
-          (attributeQuery returning attributeQuery.map(_.id) += marshalAttributeEntityReference(name, listIndex, ref, Map(ref -> entityRecord.id)))
+          (attributeQuery returning attributeQuery.map(_.id)) += marshalAttributeEntityReference(name, listIndex, ref, Map(ref -> entityRecord.id))
       }
     }
 
     private def insertAttributeValue(name: String, value: AttributeValue, listIndex: Option[Int] = None): ReadWriteAction[Long] = {
-      (attributeQuery returning attributeQuery.map(_.id) += marshalAttributeValue(name, value, listIndex))
+      (attributeQuery returning attributeQuery.map(_.id)) += marshalAttributeValue(name, value, listIndex)
     }
 
     def marshalAttribute(name: String, attribute: Attribute, entityIdsByRef: Map[AttributeEntityReference, Long]): Seq[AttributeRecord] = {
