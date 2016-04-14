@@ -176,7 +176,7 @@ trait EntityComponent {
 
       attributeQuery.batchInsertAttributes(attributeRecsToEntityId.keys.toSeq) flatMap { x =>
         val t = x.map(z => z -> attributeRecsToEntityId.values.head)
-        batchInsertEntityAttributes(t.map { case (attr, entityId) => (attr.id, entityId) }.toSeq)
+        batchInsertEntityAttributes(t.map { case (attr, entityId) => (entityId, attr.id) }.toSeq)
       }
     }
 
@@ -285,15 +285,18 @@ trait EntityComponent {
     }
 
     def batchInsertEntityAttributes(entityAttributes: Seq[(Long, Long)]) = {
-      val records = entityAttributes.map(rec => EntityAttributeRecord(rec._2, rec._1))
+      val records = entityAttributes.map(rec => EntityAttributeRecord(rec._1, rec._2))
       entityAttributeQuery ++= records
     }
 
     def cloneEntities(destWorkspaceContext: SlickWorkspaceContext, entities: TraversableOnce[Entity]): ReadWriteAction[Unit] = {
 
+      println("batch inserting these guys: " + entities)
       val batchInserts = batchInsertEntities(destWorkspaceContext, entities.toSeq.map(e => marshalEntity(e, destWorkspaceContext.workspaceId)))//.zip(entities)
 
       val attributeInserts = batchInserts flatMap { ids =>
+        println("BEI: " + ids)
+
         val idsWithEntities = ids zip entities.toSeq
         val idsWithEntityRefs = (entities.toSeq.map(e => AttributeEntityReference(e.entityType, e.name)) zip ids).toMap
 
@@ -307,11 +310,13 @@ trait EntityComponent {
 
         val batchAttrInserts = attributeQuery.batchInsertAttributes(entityIdWithAttrs.map(_._2))
 
-        batchAttrInserts flatMap { ids =>
-          val idsWithAttrIds = entityIdWithAttrs zip ids
+        batchAttrInserts flatMap { ids2 =>
+          println("BAI: " + ids2)
+          val idsWithAttrIds = entityIdWithAttrs zip ids2
           val things = idsWithAttrIds.map { case ((entityRec, _), attrRec) =>
             entityRec.id -> attrRec.id
           }
+          println("BEAI: " + things)
           batchInsertEntityAttributes(things)
           //DBIO.successful()
         }

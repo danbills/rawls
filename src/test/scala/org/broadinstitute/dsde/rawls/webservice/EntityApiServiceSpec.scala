@@ -104,8 +104,8 @@ class EntityApiServiceSpec extends ApiServiceSpec {
 
   it should "return 204 when batch upserting an entity with valid update operations" in withTestDataApiServices { services =>
     val update1 = EntityUpdateDefinition(testData.sample1.name, testData.sample1.entityType, Seq(AddUpdateAttribute("newAttribute", AttributeString("bar"))))
-    //val update2 = EntityUpdateDefinition(testData.sample2.name, testData.sample2.entityType, Seq(AddUpdateAttribute("newAttribute", AttributeString("baz"))))
-    Post(s"/workspaces/${testData.workspace.namespace}/${testData.workspace.name}/entities/batchUpsert", httpJson(Seq(update1))) ~>
+    val update2 = EntityUpdateDefinition(testData.sample2.name, testData.sample2.entityType, Seq(AddUpdateAttribute("newAttribute", AttributeString("baz"))))
+    Post(s"/workspaces/${testData.workspace.namespace}/${testData.workspace.name}/entities/batchUpsert", httpJson(Seq(update1, update2))) ~>
       sealRoute(services.entityRoutes) ~>
       check {
         assertResult(StatusCodes.NoContent) {
@@ -114,9 +114,9 @@ class EntityApiServiceSpec extends ApiServiceSpec {
         assertResult(Some(Entity(testData.sample1.name, testData.sample1.entityType, testData.sample1.attributes + ("newAttribute" -> AttributeString("bar"))))) {
           runAndWait(entityQuery.get(SlickWorkspaceContext(testData.workspace), testData.sample1.entityType, testData.sample1.name))
         }
-//        assertResult(Some(Entity(testData.sample2.name, testData.sample2.entityType, testData.sample2.attributes + ("newAttribute" -> AttributeString("baz"))))) {
-//          runAndWait(entityQuery.get(SlickWorkspaceContext(testData.workspace), testData.sample2.entityType, testData.sample2.name))
-//        }
+        assertResult(Some(Entity(testData.sample2.name, testData.sample2.entityType, testData.sample2.attributes + ("newAttribute" -> AttributeString("baz"))))) {
+          runAndWait(entityQuery.get(SlickWorkspaceContext(testData.workspace), testData.sample2.entityType, testData.sample2.name))
+        }
       }
   }
 
