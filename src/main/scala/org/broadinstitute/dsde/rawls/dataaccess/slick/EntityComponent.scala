@@ -174,7 +174,6 @@ trait EntityComponent {
         attributeRec <- attributeQuery.marshalAttribute(attributeName, attribute, entityIdsByName)
       } yield attributeRec -> entityIdsByName(entity.toReference)).toMap
 
-      //grab entity id and map with the result of batchInsertAttributes
       attributeQuery.batchInsertAttributes(attributeRecsToEntityId.keys.toSeq) flatMap { x =>
         val t = x.map(z => z -> attributeRecsToEntityId.values.head)
         batchInsertEntityAttributes(t.map { case (attr, entityId) => (attr.id, entityId) }.toSeq)
@@ -313,8 +312,8 @@ trait EntityComponent {
           val things = idsWithAttrIds.map { case ((entityRec, _), attrRec) =>
             entityRec.id -> attrRec.id
           }
-          println(things)
           batchInsertEntityAttributes(things)
+          //DBIO.successful()
         }
       }
 
