@@ -509,7 +509,6 @@ class WorkspaceService(protected val userInfo: UserInfo, dataSource: SlickDataSo
           realmCheck(sourceWorkspaceContext, destWorkspaceContext) flatMap { _ =>
             val entityNames = entityCopyDef.entityNames
             val entityType = entityCopyDef.entityType
-            println(entityNames)
             val copyResults = dataAccess.entityQuery.copyEntities(sourceWorkspaceContext, destWorkspaceContext, entityType, entityNames)
             copyResults.flatMap(conflicts => conflicts.size match {
               case 0 => {
@@ -582,7 +581,8 @@ class WorkspaceService(protected val userInfo: UserInfo, dataSource: SlickDataSo
           if (!errorReports.isEmpty) {
             DBIO.failed(new RawlsExceptionWithErrorReport(ErrorReport(StatusCodes.BadRequest, "Some entities could not be updated.", errorReports)))
           } else {
-            dataAccess.entityQuery.save(workspaceContext, updateTrials.collect { case (entityUpdate, Success(entity)) => entity } )
+            val t = updateTrials.collect { case (entityUpdate, Success(entity)) => entity }
+            dataAccess.entityQuery.save(workspaceContext, t )
           }
         }
 
@@ -674,8 +674,6 @@ class WorkspaceService(protected val userInfo: UserInfo, dataSource: SlickDataSo
    * @return the updated entity
    */
   def applyOperationsToEntity(entity: Entity, operations: Seq[AttributeUpdateOperation]): Entity = {
-    println(entity)
-    println(operations)
     entity.copy(attributes = applyAttributeUpdateOperations(entity, operations))
   }
 
