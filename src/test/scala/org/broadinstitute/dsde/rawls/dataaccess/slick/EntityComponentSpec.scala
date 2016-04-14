@@ -55,9 +55,9 @@ class EntityComponentSpec extends TestDriverComponentWithFlatSpecAndMatchers {
 
 
 
-  it should "get entity types" in withDefaultTestDatabase { 
-    
-      withWorkspaceContext(testData.workspace) { context =>
+  it should "get entity types" in withDefaultTestDatabase {
+
+    withWorkspaceContext(testData.workspace) { context =>
         assertResult(Set("PairSet", "Individual", "Sample", "Aliquot", "SampleSet", "Pair")) {
           runAndWait(entityQuery.getEntityTypes(context)).toSet
         }
@@ -106,7 +106,7 @@ class EntityComponentSpec extends TestDriverComponentWithFlatSpecAndMatchers {
 
   it should "get an entity with attribute ref name same as an entity, but different case" in withCustomTestDatabaseInternal(bugData) {
 
-      withWorkspaceContext(bugData.workspace) { context =>
+    withWorkspaceContext(bugData.workspace) { context =>
         assertResult(Some(bugData.sample1)) {
           runAndWait(entityQuery.get(context, "Sample", "sample1"))
         }

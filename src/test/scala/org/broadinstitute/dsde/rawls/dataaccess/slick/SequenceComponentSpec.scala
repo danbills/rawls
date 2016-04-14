@@ -8,10 +8,6 @@ class SequenceComponentSpec extends TestDriverComponentWithFlatSpecAndMatchers {
 
   "SequenceComponentSpec" should "peek at the most recently used id" in withEmptyTestDatabase {
 
-    assertResult(1) {
-      runAndWait(entityIdQuery.put(0))
-    }
-
     assertResult(EntityIdRecord(0)) {
       runAndWait(entityIdQuery.peek())
     }

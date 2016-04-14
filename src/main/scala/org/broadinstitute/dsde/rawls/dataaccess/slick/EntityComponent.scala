@@ -18,12 +18,15 @@ case class EntityRecord(id: Long, name: String, entityType: String, workspaceId:
 case class EntityAttributeRecord(entityId: Long, attributeId: Long)
 
 trait EntityComponent {
-  this: DriverComponent with WorkspaceComponent with AttributeComponent =>
+  this: DriverComponent
+    with WorkspaceComponent
+    with AttributeComponent
+    with SequenceComponent =>
 
   import driver.api._
 
   class EntityTable(tag: Tag) extends Table[EntityRecord](tag, "ENTITY") {
-    def id = column[Long]("id", O.PrimaryKey, O.AutoInc)
+    def id = column[Long]("id", O.PrimaryKey)
     def name = column[String]("name", O.Length(254))
     def entityType = column[String]("entity_type", O.Length(254))
     def workspaceId = column[UUID]("workspace_id")
@@ -204,12 +207,11 @@ trait EntityComponent {
 
     }
 
-    private def insertNewEntities(workspaceContext: SlickWorkspaceContext, entities: Traversable[Entity], preExistingEntityRecs: Seq[EntityRecord]): WriteAction[Seq[EntityRecord]] = {
+    private def insertNewEntities(workspaceContext: SlickWorkspaceContext, entities: Traversable[Entity], preExistingEntityRecs: Seq[EntityRecord]): ReadWriteAction[Seq[EntityRecord]] = {
       val existingEntityTypeNames = preExistingEntityRecs.map(rec => (rec.entityType, rec.name))
       val newEntities = entities.filterNot(e => existingEntityTypeNames.exists(_ ==(e.entityType, e.name)))
 
-      val newEntityRecs = newEntities.map(e => marshalEntity(e, workspaceContext.workspaceId))
-      batchInsertEntities(workspaceContext, newEntityRecs.toSeq)
+      batchInsertEntities(workspaceContext, newEntities.toSeq)
     }
 
     /** deletes an entity */
@@ -277,10 +279,12 @@ trait EntityComponent {
       allEntitiesAction.flatMap(cloneEntities(destWorkspaceContext, _))
     }
 
-    def batchInsertEntities(workspaceContext: SlickWorkspaceContext, entities: Seq[EntityRecord]) = {
-      val records = entities.map(entity => EntityRecord(0, entity.name, entity.entityType, workspaceContext.workspaceId))
-      ((entityQuery returning entityQuery.map(_.id)) ++= records) map { ids =>
-        (ids zip entities).map(x => x._2.copy(id = x._1))
+    def batchInsertEntities(workspaceContext: SlickWorkspaceContext, entities: Seq[Entity]): ReadWriteAction[Seq[EntityRecord]] = {
+      entityIdQuery.request(entities.size).flatMap { x =>
+        val records = x.zipWithIndex.map { case (id, idx) =>
+          marshalEntity(id, entities(idx), workspaceContext.workspaceId)
+        }
+        (entityQuery ++= records).map(_ => records)
       }
     }
 
@@ -291,7 +295,7 @@ trait EntityComponent {
 
     def cloneEntities(destWorkspaceContext: SlickWorkspaceContext, entities: TraversableOnce[Entity]): ReadWriteAction[Unit] = {
 
-      val batchInserts = batchInsertEntities(destWorkspaceContext, entities.toSeq.map(e => marshalEntity(e, destWorkspaceContext.workspaceId)))//.zip(entities)
+      val batchInserts = batchInsertEntities(destWorkspaceContext, entities.toSeq)//.toSeq.map(e => marshalEntity(e, destWorkspaceContext.workspaceId)))//.zip(entities)
 
       val attributeInserts = batchInserts flatMap { ids =>
         val idsWithEntities = ids zip entities.toSeq
@@ -389,8 +393,8 @@ trait EntityComponent {
       DBIO.sequence(entityQueries).map(_.toStream.collect { case Some(e) => e })
     }
 
-    def marshalEntity(entity: Entity, workspaceId: UUID): EntityRecord = {
-      EntityRecord(0, entity.name, entity.entityType, workspaceId)
+    def marshalEntity(idRec: EntityIdRecord, entity: Entity, workspaceId: UUID): EntityRecord = {
+      EntityRecord(idRec.next, entity.name, entity.entityType, workspaceId)
     }
 
     def unmarshalEntity(entityRecord: EntityRecord, attributes: Map[String, Attribute]) = {
