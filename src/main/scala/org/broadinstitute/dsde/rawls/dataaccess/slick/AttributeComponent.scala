@@ -22,7 +22,7 @@ case class AttributeRecord(id: Long,
                            listIndex: Option[Int])
 
 trait AttributeComponent {
-  this: DriverComponent with EntityComponent with IdComponent =>
+  this: DriverComponent with EntityComponent with SequenceComponent =>
 
   import driver.api._
 

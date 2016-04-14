@@ -14,7 +14,7 @@ trait DataAccess
   with MethodConfigurationComponent
   with SubmissionComponent
   with WorkflowComponent
-  with IdComponent
+  with SequenceComponent
   with SlickExpressionParser {
 
   this: DriverComponent =>
