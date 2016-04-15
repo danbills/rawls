@@ -27,7 +27,7 @@ trait AttributeComponent {
   import driver.api._
 
   class AttributeTable(tag: Tag) extends Table[AttributeRecord](tag, "ATTRIBUTE") {
-    def id = column[Long]("id", O.PrimaryKey, O.AutoInc)
+    def id = column[Long]("id", O.PrimaryKey)
     def name = column[String]("name")
     def valueString = column[Option[String]]("value_string")
     def valueNumber = column[Option[Double]]("value_number")
@@ -69,12 +69,26 @@ trait AttributeComponent {
       entityQuery.findEntityByName(workspaceId, ref.entityType, ref.entityName).result.flatMap {
         case Seq() => throw new RawlsException(s"$ref not found in workspace $workspaceId")
         case Seq(entityRecord) =>
-          (attributeQuery returning attributeQuery.map(_.id)) += marshalAttributeEntityReference(name, listIndex, ref, Map(ref -> entityRecord.id))
+
+          val record = marshalAttributeEntityReference(name, listIndex, ref, Map(ref -> entityRecord.id))
+
+          attributeIdQuery.request(1).flatMap { x =>
+            val recordWithId = record.copy(id = x.head.next)
+            (attributeQuery += recordWithId).map(_ => x.head.next)
+          }
+
+          //(attributeQuery returning attributeQuery.map(_.id)) += marshalAttributeEntityReference(name, listIndex, ref, Map(ref -> entityRecord.id))
       }
     }
 
     private def insertAttributeValue(name: String, value: AttributeValue, listIndex: Option[Int] = None): ReadWriteAction[Long] = {
-      (attributeQuery returning attributeQuery.map(_.id)) += marshalAttributeValue(name, value, listIndex)
+      val record = marshalAttributeValue(name, value, listIndex)
+      //(attributeQuery returning attributeQuery.map(_.id)) += marshalAttributeValue(name, value, listIndex)
+
+      attributeIdQuery.request(1).flatMap { x =>
+        val recordWithId = record.copy(id = x.head.next)
+        (attributeQuery += recordWithId).map(_ => x.head.next)
+      }
     }
 
     def marshalAttribute(name: String, attribute: Attribute, entityIdsByRef: Map[AttributeEntityReference, Long]): Seq[AttributeRecord] = {
@@ -91,10 +105,14 @@ trait AttributeComponent {
       }
     }
 
-    def batchInsertAttributes(attributes: Seq[AttributeRecord]) = {
-      ((attributeQuery returning attributeQuery.map(_.id)) ++= attributes) map { ids =>
-        (ids zip attributes).map(x => x._2.copy(id = x._1))
+    def batchInsertAttributes(attributes: Seq[AttributeRecord]): ReadWriteAction[Seq[AttributeRecord]] = {
+      attributeIdQuery.request(attributes.size).flatMap { x =>
+        val recordsWithIds = attributes.zipWithIndex.map { case (a, idx) =>
+          a.copy(id = x(idx).next)
+        }
+        (attributeQuery ++= recordsWithIds).map(_ => recordsWithIds)
       }
+
     }
 
     private def marshalAttributeEntityReference(name: String, listIndex: Option[Int], ref: AttributeEntityReference, entityIdsByRef: Map[AttributeEntityReference, Long]): AttributeRecord = {

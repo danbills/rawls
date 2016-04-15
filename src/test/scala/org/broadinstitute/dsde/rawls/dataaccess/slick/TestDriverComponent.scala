@@ -388,6 +388,7 @@ trait TestDriverComponent extends DriverComponent with DataAccess {
     try {
       runAndWait(allSchemas.create)
       runAndWait(entityIdQuery.put(0)) //figure out a better way to do this
+      runAndWait(attributeIdQuery.put(0)) //figure out a better way to do this
       runAndWait(data.save())
       testCode
     } catch {

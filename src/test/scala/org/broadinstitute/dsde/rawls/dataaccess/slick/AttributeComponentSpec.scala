@@ -138,19 +138,19 @@ class AttributeComponentSpec extends TestDriverComponentWithFlatSpecAndMatchers 
   }
 
   it should "delete attribute records" in withEmptyTestDatabase {
-    val inserts = Seq(
-      (attributeQuery returning attributeQuery.map(_.id)) += AttributeRecord(0, "test1", None, Some(1), None, None, None),
-      (attributeQuery returning attributeQuery.map(_.id)) += AttributeRecord(0, "test2", None, Some(2), None, None, None),
-      (attributeQuery returning attributeQuery.map(_.id)) += AttributeRecord(0, "test3", None, Some(3), None, None, None)) map { insert =>
+    val records = Seq(
+      AttributeRecord(0, "test1", None, Some(1), None, None, None),
+      AttributeRecord(0, "test2", None, Some(2), None, None, None),
+      AttributeRecord(0, "test3", None, Some(3), None, None, None))
 
-      runAndWait(insert)
-    }
-    val attributeRecs = runAndWait(attributeQuery.filter(_.id inSet inserts).result)
+    val insertedIds = runAndWait(attributeQuery.batchInsertAttributes(records)).map(_.id)
+
+    val attributeRecs = runAndWait(attributeQuery.filter(_.id inSet insertedIds).result)
     assertResult(3) { attributeRecs.size }
 
     assertResult(3) { runAndWait(attributeQuery.deleteAttributeRecords(attributeRecs)) }
 
-    assertResult(0) { runAndWait(attributeQuery.filter(_.id inSet inserts).result).size }
+    assertResult(0) { runAndWait(attributeQuery.filter(_.id inSet insertedIds).result).size }
   }
 
   it should "unmarshall attribute records" in withEmptyTestDatabase {
