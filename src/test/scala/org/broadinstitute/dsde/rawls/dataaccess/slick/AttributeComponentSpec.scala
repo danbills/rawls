@@ -3,7 +3,9 @@ package org.broadinstitute.dsde.rawls.dataaccess.slick
 import java.util.UUID
 
 import org.broadinstitute.dsde.rawls.RawlsException
+import org.broadinstitute.dsde.rawls.dataaccess.SlickWorkspaceContext
 import org.broadinstitute.dsde.rawls.model._
+import org.joda.time.DateTime
 
 /**
  * Created by dvoet on 2/9/16.
@@ -79,12 +81,14 @@ class AttributeComponentSpec extends TestDriverComponentWithFlatSpecAndMatchers 
   it should "insert entity reference attribute" in withEmptyTestDatabase {
     val workspaceId = UUID.randomUUID()
     runAndWait(workspaceQuery += WorkspaceRecord("testns", "testname1", workspaceId, "bucket", defaultTimeStamp, defaultTimeStamp, "me", false, None))
-    val entityId = runAndWait(entityQuery += EntityRecord(0, "name", "type", workspaceId))
+    val context = SlickWorkspaceContext(Workspace("testns", "testname1", None, workspaceId.toString, "bucket", DateTime.now, DateTime.now, "me", Map.empty, Map.empty, Map.empty, false))
+
+    val entityIds = runAndWait(entityQuery.batchInsertEntities(context, Seq(Entity("name", "type", Map.empty)))).map(_.id)
     val testAttribute = AttributeEntityReference("type", "name")
     val insertedIds = attributeQuery.insertAttributeRecords("test", testAttribute, workspaceId).map(x => runAndWait(x))
     assertResult(1) { insertedIds.size }
 
-    assertResult(Seq(AttributeRecord(insertedIds.head, "test", None, None, None, Option(entityId), None))) {
+    assertResult(Seq(AttributeRecord(insertedIds.head, "test", None, None, None, Option(entityIds(0)), None))) {
       runAndWait(attributeQuery.filter(_.id inSet insertedIds).result)
     }
   }
@@ -92,20 +96,19 @@ class AttributeComponentSpec extends TestDriverComponentWithFlatSpecAndMatchers 
   it should "insert entity reference attribute list" in withEmptyTestDatabase {
     val workspaceId = UUID.randomUUID()
     runAndWait(workspaceQuery += WorkspaceRecord("testns", "testname2", workspaceId, "bucket", defaultTimeStamp, defaultTimeStamp, "me", false, None))
-    val entityId1 = runAndWait((entityQuery returning entityQuery.map(_.id)) += EntityRecord(0, "name1", "type", workspaceId))
-    val entityId2 = runAndWait((entityQuery returning entityQuery.map(_.id)) += EntityRecord(0, "name2", "type", workspaceId))
-    val entityId3 = runAndWait((entityQuery returning entityQuery.map(_.id)) += EntityRecord(0, "name3", "type", workspaceId))
-    val entityId4 = runAndWait((entityQuery returning entityQuery.map(_.id)) += EntityRecord(0, "name4", "type", workspaceId))
+    val context = SlickWorkspaceContext(Workspace("testns", "testname2", None, workspaceId.toString, "bucket", DateTime.now, DateTime.now, "me", Map.empty, Map.empty, Map.empty, false))
+
+    val entityIds = runAndWait(entityQuery.batchInsertEntities(context, Seq(Entity("name1", "type", Map.empty), Entity("name2", "type", Map.empty), Entity("name3", "type", Map.empty), Entity("name4", "type", Map.empty)))).map(_.id)
 
     val testAttribute = AttributeEntityReferenceList(Seq(AttributeEntityReference("type", "name1"), AttributeEntityReference("type", "name2"), AttributeEntityReference("type", "name3"), AttributeEntityReference("type", "name4")))
     val insertedIds = attributeQuery.insertAttributeRecords("test", testAttribute, workspaceId).map(x => runAndWait(x))
     assertResult(4) { insertedIds.size }
 
     assertResult(Set(
-      AttributeRecord(0, "test", None, None, None, Option(entityId1), Option(0)),
-      AttributeRecord(0, "test", None, None, None, Option(entityId2), Option(1)),
-      AttributeRecord(0, "test", None, None, None, Option(entityId3), Option(2)),
-      AttributeRecord(0, "test", None, None, None, Option(entityId4), Option(3)))) {
+      AttributeRecord(0, "test", None, None, None, Option(entityIds(0)), Option(0)),
+      AttributeRecord(0, "test", None, None, None, Option(entityIds(1)), Option(1)),
+      AttributeRecord(0, "test", None, None, None, Option(entityIds(2)), Option(2)),
+      AttributeRecord(0, "test", None, None, None, Option(entityIds(3)), Option(3)))) {
 
       runAndWait(attributeQuery.filter(_.id inSet insertedIds).result).map(_.copy(id=0)).toSet
     }
