@@ -5,6 +5,7 @@ import javax.xml.bind.DatatypeConverter
 
 import org.broadinstitute.dsde.rawls.{RawlsExceptionWithErrorReport, RawlsException}
 import org.broadinstitute.dsde.rawls.dataaccess.SlickWorkspaceContext
+import org.joda.time.DateTime
 import slick.dbio.Effect.Read
 import slick.jdbc.GetResult
 import org.broadinstitute.dsde.rawls.model._
@@ -179,7 +180,7 @@ trait EntityComponent {
 
       attributeQuery.batchInsertAttributes(attributeRecsToEntityId.keys.toSeq) flatMap { x =>
         val t = x.map(z => z -> attributeRecsToEntityId(z.copy(id = 0)))
-        batchInsertEntityAttributes(t.map { case (attr, entityId) => (entityId, attr.id) }.toSeq)
+        batchInsertEntityAttributes(t.map { case (attr, entityId) => entityId -> attr.id }.toMap)
       }
     }
 
@@ -211,7 +212,7 @@ trait EntityComponent {
       val existingEntityTypeNames = preExistingEntityRecs.map(rec => (rec.entityType, rec.name))
       val newEntities = entities.filterNot(e => existingEntityTypeNames.exists(_ ==(e.entityType, e.name)))
 
-      batchInsertEntities(workspaceContext, newEntities.toSeq)
+      batchInsertEntities(workspaceContext, newEntities.toSeq).map(x => x.keys.toSeq)
     }
 
     /** deletes an entity */
@@ -279,48 +280,52 @@ trait EntityComponent {
       allEntitiesAction.flatMap(cloneEntities(destWorkspaceContext, _))
     }
 
-    def batchInsertEntities(workspaceContext: SlickWorkspaceContext, entities: Seq[Entity]): ReadWriteAction[Seq[EntityRecord]] = {
-      entityIdQuery.request(entities.size).flatMap { x =>
+    def batchInsertEntities(workspaceContext: SlickWorkspaceContext, entities: Seq[Entity]): ReadWriteAction[Map[EntityRecord, Entity]] = {
+      entityIdQuery.takeMany(entities.size).flatMap { x =>
         val records = x.zipWithIndex.map { case (id, idx) =>
           marshalEntity(id, entities(idx), workspaceContext.workspaceId)
         }
-        (entityQuery ++= records).map(_ => records)
+
+        val recordsGrouped = records.grouped(batchSize).toSeq
+        DBIO.sequence(recordsGrouped map { batch =>
+          (entityQuery ++= batch)
+
+        }).map(_ => (records zip entities).toMap)
       }
     }
 
-    def batchInsertEntityAttributes(entityAttributes: Seq[(Long, Long)]) = {
-      val records = entityAttributes.map(rec => EntityAttributeRecord(rec._1, rec._2))
-      entityAttributeQuery ++= records
+    def batchInsertEntityAttributes(entityAttributes: Map[Long, Long]) = {
+      val records = entityAttributes.map(rec => EntityAttributeRecord(rec._2, rec._1))
+
+      val recordsGrouped = records.grouped(batchSize).toSeq
+      DBIO.sequence(recordsGrouped map { batch =>
+        (entityAttributeQuery ++= batch)
+
+      }).map(_ => records)
     }
 
     def cloneEntities(destWorkspaceContext: SlickWorkspaceContext, entities: TraversableOnce[Entity]): ReadWriteAction[Unit] = {
 
-      val batchInserts = batchInsertEntities(destWorkspaceContext, entities.toSeq)//.toSeq.map(e => marshalEntity(e, destWorkspaceContext.workspaceId)))//.zip(entities)
+      //ideal implementation would be to do Entity and Attribute inserts in parallel, and when both succeed, insert the EntityAttributes
+      val inserts = batchInsertEntities(destWorkspaceContext, entities.toSeq) flatMap { records =>
 
-      val attributeInserts = batchInserts flatMap { ids =>
-        val idsWithEntities = ids zip entities.toSeq
-        val idsWithEntityRefs = (entities.toSeq.map(e => AttributeEntityReference(e.entityType, e.name)) zip ids).toMap
-
-        val entityIdWithAttrs = idsWithEntities flatMap { case (entityId, entity) =>
-          entity.attributes.map { case (name, attr) =>
-            attributeQuery.marshalAttribute(name, attr, idsWithEntityRefs.map((x => x._1 -> x._2.id))).map { x =>
-              entityId -> x
-            }
-          }.flatten
+        val entityIdsByRef = records.map { case (entityRecord, entity) =>
+          AttributeEntityReference(entityRecord.entityType, entityRecord.name) -> entityRecord.id
         }
 
-        val batchAttrInserts = attributeQuery.batchInsertAttributes(entityIdWithAttrs.map(_._2))
-
-        batchAttrInserts flatMap { ids2 =>
-          val idsWithAttrIds = entityIdWithAttrs zip ids2
-          val things = idsWithAttrIds.map { case ((entityRec, _), attrRec) =>
-            entityRec.id -> attrRec.id
+        val attributeRecordsWithEntityRecords = records.flatMap { case (entityRecord, entity) =>
+          entity.attributes.map { case (name, attribute) =>
+            attributeQuery.marshalAttribute(name, attribute, entityIdsByRef).map(a => a -> entityRecord)
           }
-          batchInsertEntityAttributes(things)
+        }.flatten.toMap
+
+        attributeQuery.batchInsertAttributes(attributeRecordsWithEntityRecords.keys.toSeq) flatMap { attributeRecords =>
+          val blah = attributeRecordsWithEntityRecords.values.zip(attributeRecords)
+          batchInsertEntityAttributes(blah.map(foo => foo._2.id -> foo._1.id).toMap)
         }
       }
 
-      attributeInserts.map(_ => Unit)
+      inserts.map(_ => Unit)
     }
 
     /**

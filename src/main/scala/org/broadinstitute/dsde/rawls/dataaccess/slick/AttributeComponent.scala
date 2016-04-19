@@ -72,9 +72,9 @@ trait AttributeComponent {
 
           val record = marshalAttributeEntityReference(name, listIndex, ref, Map(ref -> entityRecord.id))
 
-          attributeIdQuery.request(1).flatMap { x =>
-            val recordWithId = record.copy(id = x.head.next)
-            (attributeQuery += recordWithId).map(_ => x.head.next)
+          attributeIdQuery.takeOne.flatMap { x =>
+            val recordWithId = record.copy(id = x.next)
+            (attributeQuery += recordWithId).map(_ => x.next)
           }
 
           //(attributeQuery returning attributeQuery.map(_.id)) += marshalAttributeEntityReference(name, listIndex, ref, Map(ref -> entityRecord.id))
@@ -85,9 +85,9 @@ trait AttributeComponent {
       val record = marshalAttributeValue(name, value, listIndex)
       //(attributeQuery returning attributeQuery.map(_.id)) += marshalAttributeValue(name, value, listIndex)
 
-      attributeIdQuery.request(1).flatMap { x =>
-        val recordWithId = record.copy(id = x.head.next)
-        (attributeQuery += recordWithId).map(_ => x.head.next)
+      attributeIdQuery.takeOne.flatMap { x =>
+        val recordWithId = record.copy(id = x.next)
+        (attributeQuery += recordWithId).map(_ => x.next)
       }
     }
 
@@ -106,11 +106,20 @@ trait AttributeComponent {
     }
 
     def batchInsertAttributes(attributes: Seq[AttributeRecord]): ReadWriteAction[Seq[AttributeRecord]] = {
-      attributeIdQuery.request(attributes.size).flatMap { x =>
+      attributeIdQuery.takeMany(attributes.size).flatMap { x =>
         val recordsWithIds = attributes.zipWithIndex.map { case (a, idx) =>
           a.copy(id = x(idx).next)
         }
-        (attributeQuery ++= recordsWithIds).map(_ => recordsWithIds)
+        //(attributeQuery ++= recordsWithIds).map(_ => recordsWithIds)
+
+
+        val blah = recordsWithIds.grouped(batchSize).toSeq
+        val thing = DBIO.sequence(blah map { batch =>
+          (attributeQuery ++= batch)
+
+        }).map(_ => recordsWithIds)
+
+        thing
       }
 
     }
