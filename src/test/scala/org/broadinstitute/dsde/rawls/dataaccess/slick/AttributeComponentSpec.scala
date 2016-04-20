@@ -83,7 +83,7 @@ class AttributeComponentSpec extends TestDriverComponentWithFlatSpecAndMatchers 
     runAndWait(workspaceQuery += WorkspaceRecord("testns", "testname1", workspaceId, "bucket", defaultTimeStamp, defaultTimeStamp, "me", false, None))
     val context = SlickWorkspaceContext(Workspace("testns", "testname1", None, workspaceId.toString, "bucket", DateTime.now, DateTime.now, "me", Map.empty, Map.empty, Map.empty, false))
 
-    val entityIds = runAndWait(entityQuery.batchInsertEntities(context, Seq(Entity("name", "type", Map.empty)))).map(_.id)
+    val entityIds = runAndWait(entityQuery.batchInsertEntities(context, Seq(Entity("name", "type", Map.empty)))).map(_._1.id).toSeq
     val testAttribute = AttributeEntityReference("type", "name")
     val insertedIds = attributeQuery.insertAttributeRecords("test", testAttribute, workspaceId).map(x => runAndWait(x))
     assertResult(1) { insertedIds.size }
@@ -98,7 +98,7 @@ class AttributeComponentSpec extends TestDriverComponentWithFlatSpecAndMatchers 
     runAndWait(workspaceQuery += WorkspaceRecord("testns", "testname2", workspaceId, "bucket", defaultTimeStamp, defaultTimeStamp, "me", false, None))
     val context = SlickWorkspaceContext(Workspace("testns", "testname2", None, workspaceId.toString, "bucket", DateTime.now, DateTime.now, "me", Map.empty, Map.empty, Map.empty, false))
 
-    val entityIds = runAndWait(entityQuery.batchInsertEntities(context, Seq(Entity("name1", "type", Map.empty), Entity("name2", "type", Map.empty), Entity("name3", "type", Map.empty), Entity("name4", "type", Map.empty)))).map(_.id)
+    val entityIds = runAndWait(entityQuery.batchInsertEntities(context, Seq(Entity("name1", "type", Map.empty), Entity("name2", "type", Map.empty), Entity("name3", "type", Map.empty), Entity("name4", "type", Map.empty)))).map(_._1.id).toSeq
 
     val testAttribute = AttributeEntityReferenceList(Seq(AttributeEntityReference("type", "name1"), AttributeEntityReference("type", "name2"), AttributeEntityReference("type", "name3"), AttributeEntityReference("type", "name4")))
     val insertedIds = attributeQuery.insertAttributeRecords("test", testAttribute, workspaceId).map(x => runAndWait(x))

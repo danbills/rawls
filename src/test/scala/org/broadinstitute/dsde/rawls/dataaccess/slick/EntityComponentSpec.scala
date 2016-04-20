@@ -158,7 +158,7 @@ class EntityComponentSpec extends TestDriverComponentWithFlatSpecAndMatchers {
 
   }
 
-  it should "clone all entities from a workspace containing cycles" in withDefaultTestDatabase {
+  it should "clone all entities from a workspace containing cycles" in withEmptyTestDatabase {
     val workspaceOriginal = Workspace(
       namespace = testData.wsName.namespace + "Original",
       name = testData.wsName.name + "Original",

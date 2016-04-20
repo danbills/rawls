@@ -3,6 +3,7 @@ package org.broadinstitute.dsde.rawls.dataaccess.slick
 import java.util.UUID
 import javax.xml.bind.DatatypeConverter
 
+import com.mysql.jdbc.exceptions.jdbc4.MySQLIntegrityConstraintViolationException
 import org.broadinstitute.dsde.rawls.{RawlsExceptionWithErrorReport, RawlsException}
 import org.broadinstitute.dsde.rawls.dataaccess.SlickWorkspaceContext
 import org.joda.time.DateTime
@@ -11,6 +12,8 @@ import slick.jdbc.GetResult
 import org.broadinstitute.dsde.rawls.model._
 import slick.jdbc.GetResult
 import spray.http.StatusCodes
+
+import scala.util.{Failure, Success}
 
 /**
  * Created by dvoet on 2/4/16.
@@ -180,7 +183,7 @@ trait EntityComponent {
 
       attributeQuery.batchInsertAttributes(attributeRecsToEntityId.keys.toSeq) flatMap { x =>
         val t = x.map(z => z -> attributeRecsToEntityId(z.copy(id = 0)))
-        batchInsertEntityAttributes(t.map { case (attr, entityId) => entityId -> attr.id }.toMap)
+        batchInsertEntityAttributes(t.map { case (attr, entityId) => attr.id -> entityId }.toMap)
       }
     }
 
@@ -281,16 +284,20 @@ trait EntityComponent {
     }
 
     def batchInsertEntities(workspaceContext: SlickWorkspaceContext, entities: Seq[Entity]): ReadWriteAction[Map[EntityRecord, Entity]] = {
-      entityIdQuery.takeMany(entities.size).flatMap { x =>
-        val records = x.zipWithIndex.map { case (id, idx) =>
-          marshalEntity(id, entities(idx), workspaceContext.workspaceId)
+      entityIdQuery.takeMany(entities.size).flatMap { idRecords =>
+        idRecords match {
+          case Success(ids) =>
+            val records = ids.zipWithIndex.map { case (id, idx) =>
+              marshalEntity(id, entities(idx), workspaceContext.workspaceId)
+            }
+
+            val recordsGrouped = records.grouped(batchSize).toSeq
+            DBIO.sequence(recordsGrouped map { batch =>
+              (entityQuery ++= batch)
+
+            }).map(_ => (records zip entities).toMap)
+          case Failure(e) => throw new RawlsExceptionWithErrorReport(errorReport = ErrorReport(StatusCodes.InternalServerError, e.getMessage))
         }
-
-        val recordsGrouped = records.grouped(batchSize).toSeq
-        DBIO.sequence(recordsGrouped map { batch =>
-          (entityQuery ++= batch)
-
-        }).map(_ => (records zip entities).toMap)
       }
     }
 
@@ -317,10 +324,10 @@ trait EntityComponent {
           entity.attributes.map { case (name, attribute) =>
             attributeQuery.marshalAttribute(name, attribute, entityIdsByRef).map(a => a -> entityRecord)
           }
-        }.flatten.toMap
+        }.flatten
 
-        attributeQuery.batchInsertAttributes(attributeRecordsWithEntityRecords.keys.toSeq) flatMap { attributeRecords =>
-          val blah = attributeRecordsWithEntityRecords.values.zip(attributeRecords)
+        attributeQuery.batchInsertAttributes(attributeRecordsWithEntityRecords.map(_._1).toSeq) flatMap { attributeRecords =>
+          val blah = attributeRecordsWithEntityRecords.map(_._2).zip(attributeRecords)
           batchInsertEntityAttributes(blah.map(foo => foo._2.id -> foo._1.id).toMap)
         }
       }

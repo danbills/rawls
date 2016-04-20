@@ -3,12 +3,15 @@ package org.broadinstitute.dsde.rawls.dataaccess.slick
 import java.sql.Timestamp
 import java.util.UUID
 
+import com.mysql.jdbc.exceptions.jdbc4.MySQLIntegrityConstraintViolationException
 import org.broadinstitute.dsde.rawls.{RawlsExceptionWithErrorReport, RawlsException}
 import org.broadinstitute.dsde.rawls.dataaccess.SlickWorkspaceContext
 import org.broadinstitute.dsde.rawls.model._
 import slick.dbio.Effect.{Read, Write}
 import slick.profile.FixedSqlAction
 import spray.http.StatusCodes
+
+import scala.util.{Failure, Success}
 
 /**
  * Created by dvoet on 2/4/16.
@@ -68,26 +71,31 @@ trait AttributeComponent {
     private def insertAttributeRef(name: String, workspaceId: UUID, ref: AttributeEntityReference, listIndex: Option[Int] = None): ReadWriteAction[Long] = {
       entityQuery.findEntityByName(workspaceId, ref.entityType, ref.entityName).result.flatMap {
         case Seq() => throw new RawlsException(s"$ref not found in workspace $workspaceId")
-        case Seq(entityRecord) =>
-
+        case Seq(entityRecord) => {
           val record = marshalAttributeEntityReference(name, listIndex, ref, Map(ref -> entityRecord.id))
 
-          attributeIdQuery.takeOne.flatMap { x =>
-            val recordWithId = record.copy(id = x.next)
-            (attributeQuery += recordWithId).map(_ => x.next)
+          attributeIdQuery.takeOne.flatMap { idRecord =>
+            idRecord match {
+              case Success(id) =>
+                val recordWithId = record.copy(id = id.next)
+                (attributeQuery += recordWithId).map(_ => id.next)
+              case Failure(e) => throw new RawlsExceptionWithErrorReport(errorReport = ErrorReport(StatusCodes.InternalServerError, e.getMessage))
+            }
           }
-
-          //(attributeQuery returning attributeQuery.map(_.id)) += marshalAttributeEntityReference(name, listIndex, ref, Map(ref -> entityRecord.id))
+        }
       }
     }
 
     private def insertAttributeValue(name: String, value: AttributeValue, listIndex: Option[Int] = None): ReadWriteAction[Long] = {
       val record = marshalAttributeValue(name, value, listIndex)
-      //(attributeQuery returning attributeQuery.map(_.id)) += marshalAttributeValue(name, value, listIndex)
 
-      attributeIdQuery.takeOne.flatMap { x =>
-        val recordWithId = record.copy(id = x.next)
-        (attributeQuery += recordWithId).map(_ => x.next)
+      attributeIdQuery.takeOne.flatMap { idRecord =>
+        idRecord match {
+          case Success(id) =>
+            val recordWithId = record.copy(id = id.next)
+            (attributeQuery += recordWithId).map(_ => id.next)
+          case Failure(e) => throw new RawlsExceptionWithErrorReport(errorReport = ErrorReport(StatusCodes.InternalServerError, e.getMessage))
+        }
       }
     }
 
@@ -106,22 +114,21 @@ trait AttributeComponent {
     }
 
     def batchInsertAttributes(attributes: Seq[AttributeRecord]): ReadWriteAction[Seq[AttributeRecord]] = {
-      attributeIdQuery.takeMany(attributes.size).flatMap { x =>
-        val recordsWithIds = attributes.zipWithIndex.map { case (a, idx) =>
-          a.copy(id = x(idx).next)
+      attributeIdQuery.takeMany(attributes.size).flatMap { idRecords =>
+        idRecords match {
+          case Success(ids) =>
+            val recordsWithIds = attributes.zipWithIndex.map { case (a, idx) =>
+              a.copy(id = ids(idx).next)
+            }
+
+            val recordsGrouped = recordsWithIds.grouped(batchSize).toSeq
+            DBIO.sequence(recordsGrouped map { batch =>
+              (attributeQuery ++= batch)
+
+            }).map(_ => recordsWithIds)
+          case Failure(e) => throw new RawlsExceptionWithErrorReport(errorReport = ErrorReport(StatusCodes.InternalServerError, e.getMessage))
         }
-        //(attributeQuery ++= recordsWithIds).map(_ => recordsWithIds)
-
-
-        val blah = recordsWithIds.grouped(batchSize).toSeq
-        val thing = DBIO.sequence(blah map { batch =>
-          (attributeQuery ++= batch)
-
-        }).map(_ => recordsWithIds)
-
-        thing
       }
-
     }
 
     private def marshalAttributeEntityReference(name: String, listIndex: Option[Int], ref: AttributeEntityReference, entityIdsByRef: Map[AttributeEntityReference, Long]): AttributeRecord = {

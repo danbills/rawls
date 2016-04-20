@@ -13,7 +13,7 @@ class SequenceComponentSpec extends TestDriverComponentWithFlatSpecAndMatchers {
     }
 
     assertResult(Seq(EntityIdRecord(0), EntityIdRecord(1), EntityIdRecord(2))) {
-      runAndWait(entityIdQuery.takeMany(3))
+      runAndWait(entityIdQuery.takeMany(3)).get
     }
 
     assertResult(EntityIdRecord(3)) {
@@ -21,7 +21,7 @@ class SequenceComponentSpec extends TestDriverComponentWithFlatSpecAndMatchers {
     }
 
     assertResult(EntityIdRecord(3)) {
-      runAndWait(entityIdQuery.takeOne)
+      runAndWait(entityIdQuery.takeOne).get
     }
 
     assertResult(EntityIdRecord(4)) {
@@ -37,7 +37,7 @@ class SequenceComponentSpec extends TestDriverComponentWithFlatSpecAndMatchers {
     }
 
     assertResult(Seq(AttributeIdRecord(0), AttributeIdRecord(1), AttributeIdRecord(2))) {
-      runAndWait(attributeIdQuery.takeMany(3))
+      runAndWait(attributeIdQuery.takeMany(3)).get
     }
 
     assertResult(AttributeIdRecord(3)) {
@@ -45,7 +45,7 @@ class SequenceComponentSpec extends TestDriverComponentWithFlatSpecAndMatchers {
     }
 
     assertResult(AttributeIdRecord(3)) {
-      runAndWait(attributeIdQuery.takeOne)
+      runAndWait(attributeIdQuery.takeOne).get
     }
 
     assertResult(AttributeIdRecord(4)) {
