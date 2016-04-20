@@ -1,0 +1,474 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<databaseChangeLog logicalFilePath="dummy" xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd">
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-1">
+        <sql stripComments="true">
+            alter table ATTRIBUTE drop foreign key ATTRIBUTE_ibfk_1;
+        </sql>
+    </changeSet>
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-2">
+        <sql stripComments="true">
+            alter table ENTITY_ATTRIBUTE drop foreign key FK_ENT_ATTR_ENTITY;
+        </sql>
+    </changeSet>
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-3">
+        <sql stripComments="true">
+            alter table ENTITY_ATTRIBUTE drop foreign key FK_ENT_ATTR_ATTRIBUTE;
+        </sql>
+    </changeSet>
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-4">
+        <sql stripComments="true">
+            alter table SUBMISSION drop foreign key SUBMISSION_ibfk_1;
+        </sql>
+    </changeSet>
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-5">
+        <sql stripComments="true">
+            alter table SUBMISSION_VALIDATION drop foreign key SUBMISSION_VALIDATION_ibfk_1;
+        </sql>
+    </changeSet>
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-6">
+        <sql stripComments="true">
+            alter table WORKFLOW drop foreign key WORKFLOW_ibfk_1;
+        </sql>
+    </changeSet>
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-7">
+        <sql stripComments="true">
+            alter table WORKFLOW_FAILURE drop foreign key WORKFLOW_FAILURE_ibfk_1;
+        </sql>
+    </changeSet>
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-8">
+        <sql stripComments="true">
+            alter table WORKSPACE_ATTRIBUTE drop foreign key WORKSPACE_ATTRIBUTE_ibfk_1;
+        </sql>
+    </changeSet>
+
+
+    <!--              -->
+
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-9">
+        <sql stripComments="true">
+            alter table ATTRIBUTE change id old_uuid binary(16) not null;
+        </sql>
+    </changeSet>
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-10">
+        <sql stripComments="true">
+            alter table ATTRIBUTE drop primary key;
+        </sql>
+    </changeSet>
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-11">
+        <sql stripComments="true">
+            alter table ATTRIBUTE add column id bigint(20) unsigned AUTO_INCREMENT primary key;
+        </sql>
+    </changeSet>
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-12">
+        <sql stripComments="true">
+            alter table ATTRIBUTE change id id bigint(20) unsigned not null;
+            <comment>Also removes the AUTO_INCREMENT property</comment>
+        </sql>
+    </changeSet>
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-13">
+        <sql stripComments="true">
+            alter table ATTRIBUTE modify old_uuid binary(16) null;
+        </sql>
+    </changeSet>
+
+
+    <!--              -->
+
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-14">
+        <sql stripComments="true">
+            create table ATTRIBUTE_ID(id bigint(20) unsigned);
+        </sql>
+    </changeSet>
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-15">
+        <sql stripComments="true">
+            insert into ATTRIBUTE_ID values ((select MAX(id) from ATTRIBUTE) + 1);
+        </sql>
+    </changeSet>
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-16">
+        <sql stripComments="true">
+            alter table ATTRIBUTE_ID add primary key (id);
+        </sql>
+    </changeSet>
+
+
+    <!--              -->
+
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-17">
+        <sql stripComments="true">
+            alter table ENTITY change id old_uuid binary(16) not null;
+        </sql>
+    </changeSet>
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-18">
+        <sql stripComments="true">
+            alter table ENTITY drop primary key;
+        </sql>
+    </changeSet>
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-19">
+        <sql stripComments="true">
+            alter table ENTITY add column id bigint(20) unsigned AUTO_INCREMENT primary key;
+        </sql>
+    </changeSet>
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-20">
+        <sql stripComments="true">
+            alter table ENTITY change id id bigint(20) unsigned not null;
+        </sql>
+    </changeSet>
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-21">
+        <sql stripComments="true">
+            alter table ENTITY modify old_uuid binary(16) null;
+        </sql>
+    </changeSet>
+
+
+    <!--              -->
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-22">
+        <sql stripComments="true">
+            create table ENTITY_ID(id bigint(20) unsigned);
+        </sql>
+    </changeSet>
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-23">
+        <sql stripComments="true">
+            insert into ENTITY_ID values ((select MAX(id) from ENTITY) + 1);
+        </sql>
+    </changeSet>
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-24">
+        <sql stripComments="true">
+            alter table ENTITY_ID add primary key (id);
+        </sql>
+    </changeSet>
+
+
+    <!--              -->
+
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-25">
+        <sql stripComments="true">
+            alter table ATTRIBUTE change value_entity_ref old_value_entity_ref_uuid binary(16);
+        </sql>
+    </changeSet>
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-26">
+        <sql stripComments="true">
+            alter table ATTRIBUTE add column value_entity_ref bigint(20) unsigned;
+        </sql>
+    </changeSet>
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-27">
+        <sql stripComments="true">
+            update ATTRIBUTE a join ENTITY e on a.old_value_entity_ref_uuid=e.old_uuid set a.value_entity_ref=e.id;
+        </sql>
+    </changeSet>
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-28">
+        <sql stripComments="true">
+            alter table ATTRIBUTE drop index FK_ATTRIBUTE_ENTITY_REF;
+        </sql>
+    </changeSet>
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-29">
+        <sql stripComments="true">
+            alter table ATTRIBUTE add foreign key FK_ATTRIBUTE_ENTITY_REF (value_entity_ref) references ENTITY(id);
+        </sql>
+    </changeSet>
+
+
+    <!--              -->
+
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-30">
+        <sql stripComments="true">
+            alter table ENTITY_ATTRIBUTE change entity_id old_entity_uuid binary(16) not null;
+        </sql>
+    </changeSet>
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-31">
+        <sql stripComments="true">
+            alter table ENTITY_ATTRIBUTE add column entity_id bigint(20) unsigned;
+        </sql>
+    </changeSet>
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-32">
+        <sql stripComments="true">
+            update ENTITY_ATTRIBUTE ea join ENTITY e on ea.old_entity_uuid=e.old_uuid set ea.entity_id=e.id;
+        </sql>
+    </changeSet>
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-33">
+        <sql stripComments="true">
+            alter table ENTITY_ATTRIBUTE change entity_id entity_id bigint(20) unsigned not null;
+        </sql>
+    </changeSet>
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-34">
+        <sql stripComments="true">
+            alter table ENTITY_ATTRIBUTE drop index FK_ENT_ATTR_ENTITY;
+        </sql>
+    </changeSet>
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-35">
+        <sql stripComments="true">
+            alter table ENTITY_ATTRIBUTE add foreign key FK_ENT_ATTR_ENTITY (entity_id) references ENTITY(id);
+        </sql>
+    </changeSet>
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-36">
+        <sql stripComments="true">
+            alter table ENTITY_ATTRIBUTE modify old_entity_uuid binary(16) null;
+        </sql>
+    </changeSet>
+
+
+    <!--              -->
+
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-37">
+        <sql stripComments="true">
+            alter table ENTITY_ATTRIBUTE change attribute_id old_attribute_uuid binary(16) not null;
+        </sql>
+    </changeSet>
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-38">
+        <sql stripComments="true">
+            alter table ENTITY_ATTRIBUTE add column attribute_id bigint(20) unsigned;
+        </sql>
+    </changeSet>
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-39">
+        <sql stripComments="true">
+            update ENTITY_ATTRIBUTE ea join ATTRIBUTE a on ea.old_attribute_uuid=a.old_uuid set ea.attribute_id=a.id;
+        </sql>
+    </changeSet>
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-40">
+        <sql stripComments="true">
+            alter table ENTITY_ATTRIBUTE change attribute_id attribute_id bigint(20) unsigned not null;
+        </sql>
+    </changeSet>
+
+    <!--<changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-41">-->
+        <!--<sql stripComments="true">-->
+            <!--alter table ENTITY_ATTRIBUTE drop index FK_ENT_ATTR_ATTRIBUTE; #this isn't needed?-->
+        <!--</sql>-->
+    <!--</changeSet>-->
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-42">
+        <sql stripComments="true">
+            alter table ENTITY_ATTRIBUTE add foreign key FK_ENT_ATTR_ATTRIBUTE (attribute_id) references ATTRIBUTE(id);
+        </sql>
+    </changeSet>
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-43">
+        <sql stripComments="true">
+            alter table ENTITY_ATTRIBUTE drop primary key;
+        </sql>
+    </changeSet>
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-44">
+        <sql stripComments="true">
+            alter table ENTITY_ATTRIBUTE modify old_attribute_uuid binary(16) null default '';
+        </sql>
+    </changeSet>
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-45">
+        <sql stripComments="true">
+            alter table ENTITY_ATTRIBUTE modify attribute_id bigint(20) unsigned primary key;
+        </sql>
+    </changeSet>
+
+
+    <!--              -->
+
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-46">
+        <sql stripComments="true">
+            alter table SUBMISSION change entity_id old_entity_uuid binary(16);
+        </sql>
+    </changeSet>
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-47">
+        <sql stripComments="true">
+            alter table SUBMISSION add column entity_id bigint(20) unsigned;
+        </sql>
+    </changeSet>
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-48">
+        <sql stripComments="true">
+            update SUBMISSION s join ENTITY e on s.old_entity_uuid=e.old_uuid set s.entity_id=e.id;
+        </sql>
+    </changeSet>
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-49">
+        <sql stripComments="true">
+            alter table SUBMISSION add foreign key FK_SUB_ENTITY (entity_id) references ENTITY(id) on delete no action
+            on update no action;
+        </sql>
+    </changeSet>
+
+
+    <!--              -->
+
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-50">
+        <sql stripComments="true">
+            alter table SUBMISSION_VALIDATION change value_id old_value_uuid binary(16);
+        </sql>
+    </changeSet>
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-51">
+        <sql stripComments="true">
+            alter table SUBMISSION_VALIDATION add column value_id bigint(20) unsigned;
+        </sql>
+    </changeSet>
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-52">
+        <sql stripComments="true">
+            update SUBMISSION_VALIDATION sv join ATTRIBUTE a on sv.old_value_uuid=a.old_uuid set sv.value_id=a.id;
+        </sql>
+    </changeSet>
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-53">
+        <sql stripComments="true">
+            alter table SUBMISSION_VALIDATION add foreign key FK_SUB_VALIDATION_VAL_NEW (value_id) references
+            ATTRIBUTE(id) on delete no action on update no action;
+        </sql>
+    </changeSet>
+
+
+    <!--              -->
+
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-54">
+        <sql stripComments="true">
+            alter table WORKFLOW change entity_id old_entity_uuid binary(16);
+        </sql>
+    </changeSet>
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-55">
+        <sql stripComments="true">
+            alter table WORKFLOW add column entity_id bigint(20) unsigned;
+        </sql>
+    </changeSet>
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-56">
+        <sql stripComments="true">
+            update WORKFLOW w join ENTITY e on w.old_entity_uuid=e.old_uuid set w.entity_id=e.id;
+        </sql>
+    </changeSet>
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-57">
+        <sql stripComments="true">
+            alter table WORKFLOW add foreign key FK_WF_ENTITY_NEW (entity_id) references ENTITY(id) on delete no action
+            on update no action;
+        </sql>
+    </changeSet>
+
+
+    <!--              -->
+
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-58">
+        <sql stripComments="true">
+            alter table WORKFLOW_FAILURE change entity_id old_entity_uuid binary(16);
+        </sql>
+    </changeSet>
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-59">
+        <sql stripComments="true">
+            alter table WORKFLOW_FAILURE add column entity_id bigint(20) unsigned;
+        </sql>
+    </changeSet>
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-60">
+        <sql stripComments="true">
+            update WORKFLOW_FAILURE wf join ENTITY e on wf.old_entity_uuid=e.old_uuid set wf.entity_id=e.id;
+        </sql>
+    </changeSet>
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-61">
+        <sql stripComments="true">
+            alter table WORKFLOW_FAILURE add foreign key FK_WF_FAILURE_ENTITY_NEW (entity_id) references ENTITY(id) on
+            delete no action on update no action;
+        </sql>
+    </changeSet>
+
+
+    <!--              -->
+
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-62">
+        <sql stripComments="true">
+            alter table WORKSPACE_ATTRIBUTE change attribute_id old_attribute_uuid binary(16) not null;
+        </sql>
+    </changeSet>
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-63">
+        <sql stripComments="true">
+            alter table WORKSPACE_ATTRIBUTE add column attribute_id bigint(20) unsigned;
+        </sql>
+    </changeSet>
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-64">
+        <sql stripComments="true">
+            update WORKSPACE_ATTRIBUTE wa join ATTRIBUTE a on wa.old_attribute_uuid=a.old_uuid set wa.attribute_id=a.id;
+        </sql>
+    </changeSet>
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-65">
+        <sql stripComments="true">
+            alter table WORKSPACE_ATTRIBUTE change attribute_id attribute_id bigint(20) unsigned not null;
+        </sql>
+    </changeSet>
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-66">
+        <sql stripComments="true">
+            alter table WORKSPACE_ATTRIBUTE add foreign key FK_WS_ATTR_ATTRIBUTE (attribute_id) references
+            ATTRIBUTE(id);
+        </sql>
+    </changeSet>
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-67">
+        <sql stripComments="true">
+            alter table WORKSPACE_ATTRIBUTE drop primary key;
+        </sql>
+    </changeSet>
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-68">
+        <sql stripComments="true">
+            alter table WORKSPACE_ATTRIBUTE modify old_attribute_uuid binary(16) null default '';
+        </sql>
+    </changeSet>
+
+    <changeSet logicalFilePath="dummy" author="mbemis" id="remove-uuids-69">
+        <sql stripComments="true">
+            alter table WORKSPACE_ATTRIBUTE modify attribute_id bigint(20) unsigned primary key;
+        </sql>
+    </changeSet>
+
+</databaseChangeLog>
