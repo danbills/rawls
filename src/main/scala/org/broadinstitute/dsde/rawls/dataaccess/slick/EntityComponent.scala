@@ -3,17 +3,13 @@ package org.broadinstitute.dsde.rawls.dataaccess.slick
 import java.util.UUID
 import javax.xml.bind.DatatypeConverter
 
-import com.mysql.jdbc.exceptions.jdbc4.MySQLIntegrityConstraintViolationException
 import org.broadinstitute.dsde.rawls.{RawlsExceptionWithErrorReport, RawlsException}
 import org.broadinstitute.dsde.rawls.dataaccess.SlickWorkspaceContext
-import org.joda.time.DateTime
 import slick.dbio.Effect.Read
 import slick.jdbc.GetResult
 import org.broadinstitute.dsde.rawls.model._
 import slick.jdbc.GetResult
 import spray.http.StatusCodes
-
-import scala.util.{Failure, Success}
 
 /**
  * Created by dvoet on 2/4/16.
@@ -181,9 +177,9 @@ trait EntityComponent {
         attributeRec <- attributeQuery.marshalAttribute(attributeName, attribute, entityIdsByName)
       } yield attributeRec -> entityIdsByName(entity.toReference)).toMap
 
-      attributeQuery.batchInsertAttributes(attributeRecsToEntityId.keys.toSeq) flatMap { x =>
-        val t = x.map(z => z -> attributeRecsToEntityId(z.copy(id = 0)))
-        batchInsertEntityAttributes(t.map { case (attr, entityId) => attr.id -> entityId }.toMap)
+      attributeQuery.batchInsertAttributes(attributeRecsToEntityId.keys.toSeq) flatMap { insertedAttributes =>
+        val attrRecsWithIds = insertedAttributes.map(attrRec => attrRec -> attributeRecsToEntityId(attrRec.copy(id = 0)))
+        batchInsertEntityAttributes(attrRecsWithIds.map { case (attr, entityId) => attr.id -> entityId }.toMap)
       }
     }
 
@@ -215,7 +211,7 @@ trait EntityComponent {
       val existingEntityTypeNames = preExistingEntityRecs.map(rec => (rec.entityType, rec.name))
       val newEntities = entities.filterNot(e => existingEntityTypeNames.exists(_ ==(e.entityType, e.name)))
 
-      batchInsertEntities(workspaceContext, newEntities.toSeq).map(x => x.keys.toSeq)
+      batchInsertEntities(workspaceContext, newEntities.toSeq).map(recsWithEntities => recsWithEntities.keys.toSeq)
     }
 
     /** deletes an entity */
@@ -308,8 +304,6 @@ trait EntityComponent {
     }
 
     def cloneEntities(destWorkspaceContext: SlickWorkspaceContext, entities: TraversableOnce[Entity]): ReadWriteAction[Unit] = {
-
-      //ideal implementation would be to do Entity and Attribute inserts in parallel, and when both succeed, insert the EntityAttributes
       val inserts = batchInsertEntities(destWorkspaceContext, entities.toSeq) flatMap { records =>
 
         val entityIdsByRef = records.map { case (entityRecord, entity) =>

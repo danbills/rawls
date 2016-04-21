@@ -581,8 +581,8 @@ class WorkspaceService(protected val userInfo: UserInfo, dataSource: SlickDataSo
           if (!errorReports.isEmpty) {
             DBIO.failed(new RawlsExceptionWithErrorReport(ErrorReport(StatusCodes.BadRequest, "Some entities could not be updated.", errorReports)))
           } else {
-            val t = updateTrials.collect { case (entityUpdate, Success(entity)) => entity }
-            dataAccess.entityQuery.save(workspaceContext, t )
+            val entities = updateTrials.collect { case (entityUpdate, Success(entity)) => entity }
+            dataAccess.entityQuery.save(workspaceContext, entities)
           }
         }
 
