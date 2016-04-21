@@ -49,22 +49,23 @@ trait SequenceComponent {
     }
 
     //returns the next available id in the sequence and increments the counter
-    def takeOne(): ReadWriteAction[Try[EntityIdRecord]] = {
+    def takeOne(): ReadWriteAction[EntityIdRecord] = {
       peek flatMap { mostRecentId =>
         val newLatestId = mostRecentId.next + 1
         entityIdQuery.filter(_.next === mostRecentId.next).map(_.next).update(newLatestId).map { _ =>
           EntityIdRecord(mostRecentId.next)
-        }.asTry
+        }//.asTry
       }
     }
 
     //returns the next n available ids and increments the counter to current + n
-    def takeMany(n: Int): ReadWriteAction[Try[Seq[EntityIdRecord]]] = {
+    def takeMany(n: Int): ReadWriteAction[Seq[EntityIdRecord]] = {
       peek flatMap { mostRecentId =>
+        println("Next entity id: " + mostRecentId.next)
         val newLatestId = mostRecentId.next + n
         entityIdQuery.filter(_.next === mostRecentId.next).map(_.next).update(newLatestId).map { _ =>
           Seq.range(mostRecentId.next, newLatestId).map(EntityIdRecord(_))
-        }.asTry
+        }//.asTry
       }
     }
 
@@ -85,25 +86,38 @@ trait SequenceComponent {
     }
 
     //returns the next available id in the sequence and increments the counter
-    //TODO: retry if another query updates the id count before this one can insert/update
-    def takeOne(): ReadWriteAction[Try[AttributeIdRecord]] = {
+    //TODO: retry if another query updates the id count before this one can update
+    def takeOne(): ReadWriteAction[AttributeIdRecord] = {
       peek flatMap { mostRecentId =>
         val newLatestId = mostRecentId.next + 1
-        attributeIdQuery.filter(_.next === mostRecentId.next).map(_.next).update(newLatestId).map { _ =>
-          AttributeIdRecord(mostRecentId.next)
-        }.asTry
+        val result = attributeIdQuery.filter(_.next === mostRecentId.next).map(_.next).update(newLatestId)
+        result.flatMap { numRows =>
+          numRows match {
+            case 1 => result.map { _ =>
+              AttributeIdRecord(mostRecentId.next)
+            }
+            case _ => throw new RawlsException("didn't update any rows")
+          }
+        }
       }
     }
 
     //returns the next n available ids and increments the counter to current + n
-    def takeMany(n: Int): ReadWriteAction[Try[Seq[AttributeIdRecord]]] = {
+    def takeMany(n: Int): ReadWriteAction[Seq[AttributeIdRecord]] = {
       peek flatMap { mostRecentId =>
         val newLatestId = mostRecentId.next + n
-        attributeIdQuery.filter(_.next === mostRecentId.next).map(_.next).update(newLatestId).map { _ =>
-          Seq.range(mostRecentId.next, newLatestId).map(AttributeIdRecord(_))
-        }.asTry
+        val result = attributeIdQuery.filter(_.next === mostRecentId.next).map(_.next).update(newLatestId)
+        result.flatMap { numRows =>
+          numRows match {
+            case 1 => result.map { _ =>
+              Seq.range(mostRecentId.next, newLatestId).map(AttributeIdRecord(_))
+            }
+            case _ => throw new RawlsException("didn't update any rows")
+          }
+        }
       }
     }
 
   }
+
 }

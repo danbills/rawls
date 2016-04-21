@@ -74,13 +74,13 @@ trait AttributeComponent {
         case Seq(entityRecord) => {
           val record = marshalAttributeEntityReference(name, listIndex, ref, Map(ref -> entityRecord.id))
 
-          attributeIdQuery.takeOne.flatMap { idRecord =>
-            idRecord match {
-              case Success(id) =>
+          attributeIdQuery.takeOne.flatMap { id =>
+//            idRecord match {
+//              case Success(id) =>
                 val recordWithId = record.copy(id = id.next)
                 (attributeQuery += recordWithId).map(_ => id.next)
-              case Failure(e) => throw new RawlsExceptionWithErrorReport(errorReport = ErrorReport(StatusCodes.InternalServerError, e.getMessage))
-            }
+//              case Failure(e) => throw new RawlsExceptionWithErrorReport(errorReport = ErrorReport(StatusCodes.EnhanceYourCalm, e.getMessage))
+//            }
           }
         }
       }
@@ -89,13 +89,13 @@ trait AttributeComponent {
     private def insertAttributeValue(name: String, value: AttributeValue, listIndex: Option[Int] = None): ReadWriteAction[Long] = {
       val record = marshalAttributeValue(name, value, listIndex)
 
-      attributeIdQuery.takeOne.flatMap { idRecord =>
-        idRecord match {
-          case Success(id) =>
+      attributeIdQuery.takeOne.flatMap { id =>
+//        idRecord match {
+//          case Success(id) =>
             val recordWithId = record.copy(id = id.next)
             (attributeQuery += recordWithId).map(_ => id.next)
-          case Failure(e) => throw new RawlsExceptionWithErrorReport(errorReport = ErrorReport(StatusCodes.InternalServerError, e.getMessage))
-        }
+//          case Failure(e) => throw new RawlsExceptionWithErrorReport(errorReport = ErrorReport(StatusCodes.InternalServerError, e.getMessage))
+//        }
       }
     }
 
@@ -114,9 +114,9 @@ trait AttributeComponent {
     }
 
     def batchInsertAttributes(attributes: Seq[AttributeRecord]): ReadWriteAction[Seq[AttributeRecord]] = {
-      attributeIdQuery.takeMany(attributes.size).flatMap { idRecords =>
-        idRecords match {
-          case Success(ids) =>
+      attributeIdQuery.takeMany(attributes.size).flatMap { ids =>
+//        idRecords match {
+//          case Success(ids) =>
             val recordsWithIds = attributes.zipWithIndex.map { case (a, idx) =>
               a.copy(id = ids(idx).next)
             }
@@ -126,8 +126,8 @@ trait AttributeComponent {
               (attributeQuery ++= batch)
 
             }).map(_ => recordsWithIds)
-          case Failure(e) => throw new RawlsExceptionWithErrorReport(errorReport = ErrorReport(StatusCodes.InternalServerError, e.getMessage))
-        }
+//          case Failure(e) => throw new RawlsExceptionWithErrorReport(errorReport = ErrorReport(StatusCodes.InternalServerError, e.getMessage))
+//        }
       }
     }
 

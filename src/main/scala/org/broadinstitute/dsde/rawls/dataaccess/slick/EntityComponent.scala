@@ -284,9 +284,9 @@ trait EntityComponent {
     }
 
     def batchInsertEntities(workspaceContext: SlickWorkspaceContext, entities: Seq[Entity]): ReadWriteAction[Map[EntityRecord, Entity]] = {
-      entityIdQuery.takeMany(entities.size).flatMap { idRecords =>
-        idRecords match {
-          case Success(ids) =>
+      entityIdQuery.takeMany(entities.size).flatMap { ids =>
+//        idRecords match {
+//          case Success(ids) =>
             val records = ids.zipWithIndex.map { case (id, idx) =>
               marshalEntity(id, entities(idx), workspaceContext.workspaceId)
             }
@@ -296,8 +296,8 @@ trait EntityComponent {
               (entityQuery ++= batch)
 
             }).map(_ => (records zip entities).toMap)
-          case Failure(e) => throw new RawlsExceptionWithErrorReport(errorReport = ErrorReport(StatusCodes.InternalServerError, e.getMessage))
-        }
+//          case Failure(e) => throw new RawlsExceptionWithErrorReport(errorReport = ErrorReport(StatusCodes.UnprocessableEntity, e.getMessage))
+//        }
       }
     }
 
