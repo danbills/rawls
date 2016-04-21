@@ -90,12 +90,8 @@ trait AttributeComponent {
       val record = marshalAttributeValue(name, value, listIndex)
 
       attributeIdQuery.takeOne.flatMap { id =>
-//        idRecord match {
-//          case Success(id) =>
-            val recordWithId = record.copy(id = id.next)
-            (attributeQuery += recordWithId).map(_ => id.next)
-//          case Failure(e) => throw new RawlsExceptionWithErrorReport(errorReport = ErrorReport(StatusCodes.InternalServerError, e.getMessage))
-//        }
+        val recordWithId = record.copy(id = id.next)
+        (attributeQuery += recordWithId).map(_ => id.next)
       }
     }
 
@@ -115,19 +111,15 @@ trait AttributeComponent {
 
     def batchInsertAttributes(attributes: Seq[AttributeRecord]): ReadWriteAction[Seq[AttributeRecord]] = {
       attributeIdQuery.takeMany(attributes.size).flatMap { ids =>
-//        idRecords match {
-//          case Success(ids) =>
-            val recordsWithIds = attributes.zipWithIndex.map { case (a, idx) =>
-              a.copy(id = ids(idx).next)
-            }
+        val recordsWithIds = attributes.zipWithIndex.map { case (a, idx) =>
+          a.copy(id = ids(idx).next)
+        }
 
-            val recordsGrouped = recordsWithIds.grouped(batchSize).toSeq
-            DBIO.sequence(recordsGrouped map { batch =>
-              (attributeQuery ++= batch)
+        val recordsGrouped = recordsWithIds.grouped(batchSize).toSeq
+        DBIO.sequence(recordsGrouped map { batch =>
+          (attributeQuery ++= batch)
 
-            }).map(_ => recordsWithIds)
-//          case Failure(e) => throw new RawlsExceptionWithErrorReport(errorReport = ErrorReport(StatusCodes.InternalServerError, e.getMessage))
-//        }
+        }).map(_ => recordsWithIds)
       }
     }
 

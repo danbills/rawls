@@ -88,7 +88,8 @@ trait SequenceComponent {
     //returns the next available id in the sequence and increments the counter
     //TODO: retry if another query updates the id count before this one can update
     def takeOne(): ReadWriteAction[AttributeIdRecord] = {
-      peek flatMap { mostRecentId =>
+      val partA = sql"lock tables ATTRIBUTE_ID write".as[Int]
+      val partB = peek flatMap { mostRecentId =>
         val newLatestId = mostRecentId.next + 1
         val result = attributeIdQuery.filter(_.next === mostRecentId.next).map(_.next).update(newLatestId)
         result.flatMap { numRows =>
@@ -100,11 +101,14 @@ trait SequenceComponent {
           }
         }
       }
+      val partC = sql"unlock tables".as[Int]
+      partA andThen partB andThen partC flatMap { _ => partB }
     }
 
     //returns the next n available ids and increments the counter to current + n
     def takeMany(n: Int): ReadWriteAction[Seq[AttributeIdRecord]] = {
-      peek flatMap { mostRecentId =>
+      val partA = sql"lock tables ATTRIBUTE_ID write".as[Int]
+      val partB = peek flatMap { mostRecentId =>
         val newLatestId = mostRecentId.next + n
         val result = attributeIdQuery.filter(_.next === mostRecentId.next).map(_.next).update(newLatestId)
         result.flatMap { numRows =>
@@ -116,6 +120,8 @@ trait SequenceComponent {
           }
         }
       }
+      val partC = sql"unlock tables".as[Int]
+      partA andThen partB andThen partC flatMap { _ => partB }
     }
 
   }

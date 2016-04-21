@@ -285,19 +285,15 @@ trait EntityComponent {
 
     def batchInsertEntities(workspaceContext: SlickWorkspaceContext, entities: Seq[Entity]): ReadWriteAction[Map[EntityRecord, Entity]] = {
       entityIdQuery.takeMany(entities.size).flatMap { ids =>
-//        idRecords match {
-//          case Success(ids) =>
-            val records = ids.zipWithIndex.map { case (id, idx) =>
-              marshalEntity(id, entities(idx), workspaceContext.workspaceId)
-            }
+        val records = ids.zipWithIndex.map { case (id, idx) =>
+          marshalEntity(id, entities(idx), workspaceContext.workspaceId)
+        }
 
-            val recordsGrouped = records.grouped(batchSize).toSeq
-            DBIO.sequence(recordsGrouped map { batch =>
-              (entityQuery ++= batch)
+        val recordsGrouped = records.grouped(batchSize).toSeq
+        DBIO.sequence(recordsGrouped map { batch =>
+          (entityQuery ++= batch)
 
-            }).map(_ => (records zip entities).toMap)
-//          case Failure(e) => throw new RawlsExceptionWithErrorReport(errorReport = ErrorReport(StatusCodes.UnprocessableEntity, e.getMessage))
-//        }
+        }).map(_ => (records zip entities).toMap)
       }
     }
 
