@@ -37,7 +37,7 @@ trait SequenceComponent {
   object entityIdQuery extends TableQuery(new EntityIdTable(_)) {
 
     /*
-      Dangerous! this shouldn't be in the final version, rather we should initialize this value to 0 using liquibase
+      Dangerous! don't use this unless initializing this value in unit tests
      */
     def put(id: Long): WriteAction[Int] = {
       entityIdQuery += EntityIdRecord(id)
@@ -49,22 +49,21 @@ trait SequenceComponent {
     }
 
     //returns the next available id in the sequence and increments the counter
+    //See http://dev.mysql.com/doc/refman/5.7/en/innodb-locking-reads.html for information
+    //about the SELECT FOR UPDATE syntax
     def takeOne(): ReadWriteAction[EntityIdRecord] = {
-      peek flatMap { mostRecentId =>
-        val newLatestId = mostRecentId.next + 1
-        entityIdQuery.filter(_.next === mostRecentId.next).map(_.next).update(newLatestId).map { _ =>
-          EntityIdRecord(mostRecentId.next)
+      sql"SELECT id FROM ENTITY_ID FOR UPDATE".as[Long] flatMap { id =>
+        sql"UPDATE ENTITY_ID SET id = id + 1".as[Int] map { _ =>
+          EntityIdRecord(id.head)
         }
       }
     }
 
     //returns the next n available ids and increments the counter to current + n
     def takeMany(n: Int): ReadWriteAction[Seq[EntityIdRecord]] = {
-      peek flatMap { mostRecentId =>
-        println("Next entity id: " + mostRecentId.next)
-        val newLatestId = mostRecentId.next + n
-        entityIdQuery.filter(_.next === mostRecentId.next).map(_.next).update(newLatestId).map { _ =>
-          Seq.range(mostRecentId.next, newLatestId).map(EntityIdRecord(_))
+      sql"SELECT id FROM ENTITY_ID FOR UPDATE".as[Long] flatMap { id =>
+        sql"UPDATE ENTITY_ID SET id = id + $n".as[Int] map { _ =>
+          Seq.range(id.head, (id.head + n)).map(EntityIdRecord(_))
         }
       }
     }
@@ -74,7 +73,7 @@ trait SequenceComponent {
   object attributeIdQuery extends TableQuery(new AttributeIdTable(_)) {
 
     /*
-      Dangerous! this shouldn't be in the final version, rather we should initialize this value to 0 using liquibase
+      Dangerous! don't use this unless initializing this value in unit tests
      */
     def put(id: Long): WriteAction[Int] = {
       attributeIdQuery += AttributeIdRecord(id)
@@ -88,36 +87,21 @@ trait SequenceComponent {
     //returns the next available id in the sequence and increments the counter
     //TODO: retry if another query updates the id count before this one can update
     def takeOne(): ReadWriteAction[AttributeIdRecord] = {
-      peek flatMap { mostRecentId =>
-        val newLatestId = mostRecentId.next + 1
-        val result = attributeIdQuery.filter(_.next === mostRecentId.next).map(_.next).update(newLatestId)
-        result.flatMap { numRows =>
-          numRows match {
-            case 1 => result.map { _ =>
-              AttributeIdRecord(mostRecentId.next)
-            }
-            case _ => throw new RawlsException("didn't update any rows")
-          }
+      sql"SELECT id FROM ATTRIBUTE_ID FOR UPDATE".as[Long] flatMap { id =>
+        sql"UPDATE ATTRIBUTE_ID SET id = id + 1".as[Int] map { _ =>
+          AttributeIdRecord(id.head)
         }
       }
     }
 
     //returns the next n available ids and increments the counter to current + n
     def takeMany(n: Int): ReadWriteAction[Seq[AttributeIdRecord]] = {
-      peek flatMap { mostRecentId =>
-        val newLatestId = mostRecentId.next + n
-        val result = attributeIdQuery.filter(_.next === mostRecentId.next).map(_.next).update(newLatestId)
-        result.flatMap { numRows =>
-          numRows match {
-            case 1 => result.map { _ =>
-              Seq.range(mostRecentId.next, newLatestId).map(AttributeIdRecord(_))
-            }
-            case _ => throw new RawlsException("didn't update any rows")
-          }
+      sql"SELECT id FROM ATTRIBUTE_ID FOR UPDATE".as[Long] flatMap { id =>
+        sql"UPDATE ATTRIBUTE_ID SET id = id + $n".as[Int] map { _ =>
+          Seq.range(id.head, (id.head + n)).map(AttributeIdRecord(_))
         }
       }
     }
 
   }
-
 }
