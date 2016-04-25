@@ -522,32 +522,105 @@ class WorkspaceService(protected val userInfo: UserInfo, dataSource: SlickDataSo
       }
     }
 
-  def copyEntities(entityCopyDef: EntityCopyDefinition, uri: Uri): Future[PerRequestMessage] =
-    dataSource.inTransaction { dataAccess =>
+
+//
+//  val context = dataSource.inTransaction { dataAccess =>
+//    withWorkspaceContextAndPermissions(sourceWorkspaceName, WorkspaceAccessLevels.Read, dataAccess) { sourceWorkspaceContext =>
+//      DBIO.successful(RequestComplete(sourceWorkspaceContext.workspace))
+//    }
+//  }
+//
+//  context flatMap {
+//    case RequestComplete(workspace: Workspace) => {
+//      dataSource.inTransaction { dataAccess =>
+//        dataAccess.entityQuery.lookupEntityAndAttributeCounts(UUID.fromString(workspace.workspaceId))
+//      } flatMap { case (numEntities, numAttributes) =>
+//        dataSource.inTransaction { dataAccess =>
+//          dataAccess.entityIdQuery.takeMany(numEntities) zip dataAccess.attributeIdQuery.takeMany(numAttributes)
+//        } flatMap { case (entityIds, attributeIds) =>
+//          dataSource.inTransaction { dataAccess =>
+//            val sourceWorkspaceContext = SlickWorkspaceContext(workspace)
+//            withClonedRealm(sourceWorkspaceContext, destWorkspaceRequest) { newRealm =>
+//
+//              // add to or replace current attributes, on an individual basis
+//              val newAttrs = sourceWorkspaceContext.workspace.attributes ++ destWorkspaceRequest.attributes
+//
+//              withNewWorkspaceContext(destWorkspaceRequest.copy(realm = newRealm, attributes = newAttrs), dataAccess) { destWorkspaceContext =>
+//                dataAccess.entityQuery.cloneAllEntities(entityIds, attributeIds, sourceWorkspaceContext, destWorkspaceContext) andThen
+//                  dataAccess.methodConfigurationQuery.list(sourceWorkspaceContext).flatMap { methodConfigShorts =>
+//                    val inserts = methodConfigShorts.map { methodConfigShort => dataAccess.methodConfigurationQuery.get(sourceWorkspaceContext, methodConfigShort.namespace, methodConfigShort.name).flatMap { methodConfig =>
+//                      dataAccess.methodConfigurationQuery.save(destWorkspaceContext, methodConfig.get)
+//                    }
+//                    }
+//                    DBIO.seq(inserts: _*)
+//                  } andThen {
+//                  DBIO.successful(RequestCompleteWithLocation((StatusCodes.Created, destWorkspaceContext.workspace), destWorkspaceRequest.toWorkspaceName.path))
+//                }
+//              }
+//            }
+//          }
+//        }
+//      }
+//    }
+//    case other => Future.successful(other)
+//  }
+
+  def copyEntities(entityCopyDef: EntityCopyDefinition, uri: Uri): Future[PerRequestMessage] = {
+
+    val destContext = dataSource.inTransaction { dataAccess =>
       withWorkspaceContextAndPermissions(entityCopyDef.destinationWorkspace, WorkspaceAccessLevels.Write, dataAccess) { destWorkspaceContext =>
-        withWorkspaceContextAndPermissions(entityCopyDef.sourceWorkspace, WorkspaceAccessLevels.Read, dataAccess) { sourceWorkspaceContext =>
-          realmCheck(sourceWorkspaceContext, destWorkspaceContext) flatMap { _ =>
-            val entityNames = entityCopyDef.entityNames
-            val entityType = entityCopyDef.entityType
-            val copyResults = dataAccess.entityQuery.copyEntities(sourceWorkspaceContext, destWorkspaceContext, entityType, entityNames)
-            copyResults.flatMap(conflicts => conflicts.size match {
-              case 0 => {
-                // get the entities that were copied into the destination workspace
-                dataAccess.entityQuery.list(destWorkspaceContext, entityType).map { allEntities =>
-                  val entityCopies = allEntities.filter((e: Entity) => entityNames.contains(e.name)).toList
-                  RequestComplete(StatusCodes.Created, entityCopies)
-                }
-              }
-              case _ => {
-                val basePath = s"/${destWorkspaceContext.workspace.namespace}/${destWorkspaceContext.workspace.name}/entities/"
-                val conflictingUris = conflicts.map(conflict => ErrorReport(uri.copy(path = Uri.Path(basePath + s"${conflict.entityType}/${conflict.name}")).toString(), Seq.empty))
-                DBIO.failed(new RawlsExceptionWithErrorReport(errorReport = ErrorReport(StatusCodes.Conflict, "Unable to copy entities. Some entities already exist.", conflictingUris.toSeq)))
-              }
-            })
-          }
-        }
+        DBIO.successful(RequestComplete(destWorkspaceContext.workspace))
       }
     }
+
+    val sourceContext = dataSource.inTransaction { dataAccess =>
+      withWorkspaceContextAndPermissions(entityCopyDef.sourceWorkspace, WorkspaceAccessLevels.Read, dataAccess) { sourceWorkspaceContext =>
+        DBIO.successful(RequestComplete(sourceWorkspaceContext.workspace))
+      }
+    }
+
+    destContext flatMap {
+      case RequestComplete(destWorkspace: Workspace) => {
+        sourceContext flatMap {
+          case RequestComplete(sourceWorkspace: Workspace) => {
+            dataSource.inTransaction { dataAccess =>
+              dataAccess.entityQuery.lookupAttributeCountsForEntities(entityCopyDef)
+            } flatMap { numAttributes =>
+              dataSource.inTransaction { dataAccess =>
+                dataAccess.entityIdQuery.takeMany(entityCopyDef.entityNames.size) zip dataAccess.attributeIdQuery.takeMany(numAttributes)
+              } flatMap { case (entityIds, attributeIds) =>
+                dataSource.inTransaction { dataAccess =>
+                  val sourceWorkspaceContext = SlickWorkspaceContext(sourceWorkspace)
+                  val destWorkspaceContext = SlickWorkspaceContext(destWorkspace)
+                  realmCheck(sourceWorkspaceContext, destWorkspaceContext) flatMap { _ =>
+                    val entityNames = entityCopyDef.entityNames
+                    val entityType = entityCopyDef.entityType
+                    val copyResults = dataAccess.entityQuery.copyEntities(entityIds, attributeIds, sourceWorkspaceContext, destWorkspaceContext, entityType, entityNames)
+                    copyResults.flatMap(conflicts => conflicts.size match {
+                      case 0 => {
+                        // get the entities that were copied into the destination workspace
+                        dataAccess.entityQuery.list(destWorkspaceContext, entityType).map { allEntities =>
+                          val entityCopies = allEntities.filter((e: Entity) => entityNames.contains(e.name)).toList
+                          RequestComplete(StatusCodes.Created, entityCopies)
+                        }
+                      }
+                      case _ => {
+                        val basePath = s"/${destWorkspaceContext.workspace.namespace}/${destWorkspaceContext.workspace.name}/entities/"
+                        val conflictingUris = conflicts.map(conflict => ErrorReport(uri.copy(path = Uri.Path(basePath + s"${conflict.entityType}/${conflict.name}")).toString(), Seq.empty))
+                        DBIO.failed(new RawlsExceptionWithErrorReport(errorReport = ErrorReport(StatusCodes.Conflict, "Unable to copy entities. Some entities already exist.", conflictingUris.toSeq)))
+                      }
+                    })
+                  }
+                }
+              }
+            }
+          }
+          case other => Future.successful(other)
+        }
+      }
+      case other => Future.successful(other)
+    }
+  }
 
   // can't use withClonedRealm because the Realm -> no Realm logic is different
   private def realmCheck(sourceWorkspaceContext: SlickWorkspaceContext, destWorkspaceContext: SlickWorkspaceContext): ReadWriteAction[Boolean] = {

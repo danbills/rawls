@@ -143,7 +143,7 @@ class AttributeComponentSpec extends TestDriverComponentWithFlatSpecAndMatchers 
       AttributeRecord(0, "test2", None, Some(2), None, None, None),
       AttributeRecord(0, "test3", None, Some(3), None, None, None))
 
-    val insertedIds = runAndWait(attributeQuery.batchInsertAttributes(records)).map(_.id)
+    val insertedIds = runAndWait(attributeQuery.batchInsertEntityAttributes(records)).map(_.id)
 
     val attributeRecs = runAndWait(attributeQuery.filter(_.id inSet insertedIds).result)
     assertResult(3) { attributeRecs.size }

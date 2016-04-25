@@ -75,11 +75,11 @@ trait EntityComponent {
     import driver.quoteIdentifier
     // the where clause for this query is filled in specific to the use case
     val baseEntityAndAttributeSql =
-      s"""select e.${quoteIdentifier("id")}, e.${quoteIdentifier("name")}, e.${quoteIdentifier("entity_type")}, e.${quoteIdentifier("workspace_id")}, a.${quoteIdentifier("id")}, a.${quoteIdentifier("name")}, a.${quoteIdentifier("value_string")}, a.${quoteIdentifier("value_number")}, a.${quoteIdentifier("value_boolean")}, a.${quoteIdentifier("value_entity_ref")}, a.${quoteIdentifier("list_index")}, e_ref.${quoteIdentifier("id")}, e_ref.${quoteIdentifier("name")}, e_ref.${quoteIdentifier("entity_type")}, e_ref.${quoteIdentifier("workspace_id")}
+      s"""select e.id, e.name, e.entity_type, e.workspace_id, a.id, a.name, a.value_string, a.value_number, a.value_boolean, a.value_entity_ref, a.list_index, e_ref.id, e_ref.name, e_ref.entity_type, e_ref.workspace_id
           from ENTITY e
-          left outer join ENTITY_ATTRIBUTE ea on e.${quoteIdentifier("id")} = ea.${quoteIdentifier("entity_id")}
-          left outer join ATTRIBUTE a on ea.${quoteIdentifier("attribute_id")} = a.${quoteIdentifier("id")}
-          left outer join ENTITY e_ref on a.${quoteIdentifier("value_entity_ref")} = e_ref.${quoteIdentifier("id")}"""
+          left outer join ENTITY_ATTRIBUTE ea on e.id = ea.entity_id
+          left outer join ATTRIBUTE a on ea.attribute_id = a.id
+          left outer join ENTITY e_ref on a.value_entity_ref = e_ref.id"""
 
     val baseEntityAndAttributeCountSql =
       s"""select count(distinct e.id), count(1)
@@ -87,6 +87,11 @@ trait EntityComponent {
           left outer join ENTITY_ATTRIBUTE ea on e.id = ea.entity_id
           left outer join ATTRIBUTE a on ea.attribute_id = a.id
           left outer join ENTITY e_ref on a.value_entity_ref = e_ref.id"""
+
+    val baseAttributesOfEntitiesCountSql =
+      s"""select count(1)
+          from ENTITY e
+          left outer join ENTITY_ATTRIBUTE ea on e.id = ea.entity_id"""
 
     def entityAttributes(entityId: Long) = for {
       entityAttrRec <- entityAttributeQuery if entityAttrRec.entityId === entityId
@@ -122,6 +127,12 @@ trait EntityComponent {
 
     def lookupEntityAndAttributeCounts(workspaceId: UUID): ReadAction[(Int, Int)] = {
       sql"""#$baseEntityAndAttributeCountSql where e.workspace_id = ${workspaceId}""".as[(Int, Int)].map(_.head)
+    }
+
+    def lookupAttributeCountsForEntities(entities: EntityCopyDefinition): ReadAction[Int] = {
+      val base = sql"#$baseAttributesOfEntitiesCountSql where e.entity_type = ${entities.entityType} and e.name in ("
+      val entityNames = entities.entityNames.map(name => sql"$name").reduce((a, b) => concatSqlActionsWithDelim(a, b, sql","))
+      concatSqlActions(concatSqlActions(base, entityNames), sql")").as[Int].map(_.head)
     }
 
     /** gets the given entity */
@@ -188,8 +199,7 @@ trait EntityComponent {
         attributeRec <- attributeQuery.marshalAttribute(attributeName, attribute, entityIdsByName)
       } yield attributeRec -> entityIdsByName(entity.toReference)).toMap
 
-      //TODO: fix ids
-      attributeQuery.batchInsertAttributes(Seq.empty, attributeRecsToEntityId.keys.toSeq) flatMap { insertedAttributes =>
+      attributeQuery.batchInsertEntityAttributes(attributeRecsToEntityId.keys.toSeq) flatMap { insertedAttributes =>
         val attrRecsWithIds = insertedAttributes.map(attrRec => attrRec -> attributeRecsToEntityId(attrRec.copy(id = 0)))
         batchInsertEntityAttributes(attrRecsWithIds.map { case (attr, entityId) => attr.id -> entityId }.toMap)
       }
@@ -223,8 +233,7 @@ trait EntityComponent {
       val existingEntityTypeNames = preExistingEntityRecs.map(rec => (rec.entityType, rec.name))
       val newEntities = entities.filterNot(e => existingEntityTypeNames.exists(_ ==(e.entityType, e.name)))
 
-      //TODO: fix ids
-      batchInsertEntities(Seq.empty, workspaceContext, newEntities.toSeq).map(recsWithEntities => recsWithEntities.keys.toSeq)
+      batchInsertEntities(workspaceContext, newEntities.toSeq).map(recsWithEntities => recsWithEntities.keys.toSeq)
     }
 
     /** deletes an entity */
@@ -292,7 +301,7 @@ trait EntityComponent {
       allEntitiesAction.flatMap(cloneEntities(entityIds, attributeIds, destWorkspaceContext, _))
     }
 
-    def batchInsertEntities(entityIds: Seq[EntityIdRecord], workspaceContext: SlickWorkspaceContext, entities: Seq[Entity]): ReadWriteAction[Map[EntityRecord, Entity]] = {
+    def batchInsertEntitiesWithIds(entityIds: Seq[EntityIdRecord], workspaceContext: SlickWorkspaceContext, entities: Seq[Entity]): ReadWriteAction[Map[EntityRecord, Entity]] = {
       val records = entityIds.zipWithIndex.map { case (id, idx) =>
         marshalEntity(id, entities(idx), workspaceContext.workspaceId)
       }
@@ -302,6 +311,20 @@ trait EntityComponent {
         (entityQuery ++= batch)
 
       }).map(_ => (records zip entities).toMap)
+    }
+
+    def batchInsertEntities(workspaceContext: SlickWorkspaceContext, entities: Seq[Entity]): ReadWriteAction[Map[EntityRecord, Entity]] = {
+      entityIdQuery.takeMany(entities.size) flatMap { ids =>
+        val records = ids.zipWithIndex.map { case (id, idx) =>
+          marshalEntity(id, entities(idx), workspaceContext.workspaceId)
+        }
+
+        val recordsGrouped = records.grouped(batchSize).toSeq
+        DBIO.sequence(recordsGrouped map { batch =>
+          (entityQuery ++= batch)
+
+        }).map(_ => (records zip entities).toMap)
+      }
     }
 
     def batchInsertEntityAttributes(entityAttributes: Map[Long, Long]) = {
@@ -315,7 +338,7 @@ trait EntityComponent {
     }
 
     def cloneEntities(entityIds: Seq[EntityIdRecord], attributeIds: Seq[AttributeIdRecord], destWorkspaceContext: SlickWorkspaceContext, entities: TraversableOnce[Entity]): ReadWriteAction[Unit] = {
-      val inserts = batchInsertEntities(entityIds, destWorkspaceContext, entities.toSeq) flatMap { records =>
+      val inserts = batchInsertEntitiesWithIds(entityIds, destWorkspaceContext, entities.toSeq) flatMap { records =>
 
         val entityIdsByRef = records.map { case (entityRecord, entity) =>
           AttributeEntityReference(entityRecord.entityType, entityRecord.name) -> entityRecord.id
@@ -327,7 +350,7 @@ trait EntityComponent {
           }
         }.flatten
 
-        attributeQuery.batchInsertAttributes(attributeIds, attributeRecordsWithEntityRecords.map(_._1).toSeq) flatMap { attributeRecords =>
+        attributeQuery.batchInsertEntityAttributesWithIds(attributeIds, attributeRecordsWithEntityRecords.map(_._1).toSeq) flatMap { attributeRecords =>
           val blah = attributeRecordsWithEntityRecords.map(_._2).zip(attributeRecords)
           batchInsertEntityAttributes(blah.map(foo => foo._2.id -> foo._1.id).toMap)
         }
@@ -384,12 +407,11 @@ trait EntityComponent {
       entitiesQuery.map(_.flatten)
     }
 
-    def copyEntities(sourceWorkspaceContext: SlickWorkspaceContext, destWorkspaceContext: SlickWorkspaceContext, entityType: String, entityNames: Seq[String]): ReadWriteAction[TraversableOnce[Entity]] = {
+    def copyEntities(entityIds: Seq[EntityIdRecord], attributeIds: Seq[AttributeIdRecord], sourceWorkspaceContext: SlickWorkspaceContext, destWorkspaceContext: SlickWorkspaceContext, entityType: String, entityNames: Seq[String]): ReadWriteAction[TraversableOnce[Entity]] = {
       getEntitySubtrees(sourceWorkspaceContext, entityType, entityNames).flatMap { entities =>
         getCopyConflicts(destWorkspaceContext, entities).flatMap { conflicts =>
           if (conflicts.isEmpty) {
-            //TODO: fix ids
-            cloneEntities(Seq.empty, Seq.empty, destWorkspaceContext, entities).map(_ => Seq.empty[Entity])
+            cloneEntities(entityIds, attributeIds, destWorkspaceContext, entities).map(_ => Seq.empty[Entity])
           } else {
             DBIO.successful(conflicts)
           }
@@ -424,17 +446,22 @@ trait EntityComponent {
       attributeInserts.toSeq
     }
 
+//    def deleteEntityAttributes(entityRecords: Seq[EntityRecord]) = {
+//      if (entityRecords.isEmpty) {
+//        // 0 records deleted
+//        DBIO.successful(0)
+//      }
+//      else {
+//        // use plain sql to delete from a join - we were doing a subselect before, which had awful performance, and slick can't do this
+//        val deleteBase = sql"""delete a from ATTRIBUTE AS a join ENTITY_ATTRIBUTE AS ea ON a.id = ea.attribute_id where ea.entity_id in ("""
+//        val ids = entityRecords.map { case entity => sql"${entity.id}" }.reduce((a, b) => concatSqlActionsWithDelim(a, b, sql","))
+//        concatSqlActions(concatSqlActions(deleteBase, ids), sql")").as[Int]
+//      }
+//    }
+
     def deleteEntityAttributes(entityRecords: Seq[EntityRecord]) = {
-      if (entityRecords.isEmpty) {
-        // 0 records deleted
-        DBIO.successful(0)
-      }
-      else {
-        // use plain sql to delete from a join - we were doing a subselect before, which had awful performance, and slick can't do this
-        val deleteBase = sql"delete a from ATTRIBUTE AS a join ENTITY_ATTRIBUTE AS ea ON a.id = ea.attribute_id where ea.entity_id in ("
-        val ids = entityRecords.map { case entity => sql"${entity.id}" }.reduce((a, b) => concatSqlActionsWithDelim(a, b, sql","))
-        concatSqlActions(concatSqlActions(deleteBase, ids), sql")").as[Int]
-      }
+      val entityAttributes = entityAttributeQuery.filter(_.entityId.inSetBind(entityRecords.map(_.id)))
+      attributeQuery.filter(_.id in entityAttributes.map(_.attributeId)).delete
     }
   }
 

@@ -204,7 +204,9 @@ class EntityComponentSpec extends TestDriverComponentWithFlatSpecAndMatchers {
           val c3_updated = Entity("c3", "samples", Map("foo" -> AttributeString("x"), "bar" -> AttributeNumber(3), "cycle3" -> AttributeEntityReference("samples", "c1")))
 
           runAndWait(entityQuery.save(originalContext, c3_updated))
-          runAndWait(entityQuery.cloneAllEntities(originalContext, cloneContext))
+          val entityIds = runAndWait(entityIdQuery.takeMany(3))
+          val attributeIds = runAndWait(attributeIdQuery.takeMany(9))
+          runAndWait(entityQuery.cloneAllEntities(entityIds, attributeIds, originalContext, cloneContext))
 
           val expectedEntities = Set(c1, c2, c3_updated)
           assertResult(expectedEntities) {
@@ -337,8 +339,11 @@ class EntityComponentSpec extends TestDriverComponentWithFlatSpecAndMatchers {
             runAndWait(entityQuery.getCopyConflicts(context1, Seq(x1, x2_updated)))
           }
 
+          val entityIds = runAndWait(entityIdQuery.takeMany(2))
+          val attributeIds = runAndWait(attributeIdQuery.takeMany(2))
+
           assertResult(Seq.empty) {
-            runAndWait(entityQuery.copyEntities(context2, context1, "SampleSet", Seq("x2")))
+            runAndWait(entityQuery.copyEntities(entityIds, attributeIds, context2, context1, "SampleSet", Seq("x2")))
           }
 
           //verify it was actually copied into the workspace
@@ -379,8 +384,11 @@ class EntityComponentSpec extends TestDriverComponentWithFlatSpecAndMatchers {
           runAndWait(entityQuery.getCopyConflicts(context1, Seq(a1, a2, a3, a4, a5, a6, a)))
         }
 
+        val entityIds = runAndWait(entityIdQuery.takeMany(7))
+        val attributeIds = runAndWait(attributeIdQuery.takeMany(7))
+
         assertResult(Seq.empty) {
-          runAndWait(entityQuery.copyEntities(context2, context1, "test", Seq("a1")))
+          runAndWait(entityQuery.copyEntities(entityIds, attributeIds, context2, context1, "test", Seq("a1")))
         }
 
         //verify it was actually copied into the workspace
@@ -399,8 +407,11 @@ class EntityComponentSpec extends TestDriverComponentWithFlatSpecAndMatchers {
           runAndWait(entityQuery.getCopyConflicts(context, Seq(testData.sample1))).toSet
         }
 
+        val entityIds = runAndWait(entityIdQuery.takeMany(2))
+        val attributeIds = runAndWait(attributeIdQuery.takeMany(6))
+
         assertResult(Set(testData.sample1, testData.aliquot1)) {
-          runAndWait(entityQuery.copyEntities(context, context, "Sample", Seq("sample1"))).toSet
+          runAndWait(entityQuery.copyEntities(entityIds, attributeIds, context, context, "Sample", Seq("sample1"))).toSet
         }
 
         //verify that it wasn't copied into the workspace again
