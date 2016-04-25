@@ -330,29 +330,49 @@ class WorkspaceService(protected val userInfo: UserInfo, dataSource: SlickDataSo
       .map {p => p.get(workspaceContext.workspaceId).get}
   }
 
-  def cloneWorkspace(sourceWorkspaceName: WorkspaceName, destWorkspaceRequest: WorkspaceRequest): Future[PerRequestMessage] =
-    dataSource.inTransaction { dataAccess =>
-      withWorkspaceContextAndPermissions(sourceWorkspaceName,WorkspaceAccessLevels.Read, dataAccess) { sourceWorkspaceContext =>
-        withClonedRealm(sourceWorkspaceContext, destWorkspaceRequest) { newRealm =>
+  def cloneWorkspace(sourceWorkspaceName: WorkspaceName, destWorkspaceRequest: WorkspaceRequest): Future[PerRequestMessage] = {
 
-          // add to or replace current attributes, on an individual basis
-          val newAttrs = sourceWorkspaceContext.workspace.attributes ++ destWorkspaceRequest.attributes
+    val context = dataSource.inTransaction { dataAccess =>
+      withWorkspaceContextAndPermissions(sourceWorkspaceName, WorkspaceAccessLevels.Read, dataAccess) { sourceWorkspaceContext =>
+        DBIO.successful(RequestComplete(sourceWorkspaceContext.workspace))
+      }
+    }
 
-          withNewWorkspaceContext(destWorkspaceRequest.copy(realm = newRealm, attributes = newAttrs), dataAccess) { destWorkspaceContext =>
-            dataAccess.entityQuery.cloneAllEntities(sourceWorkspaceContext, destWorkspaceContext) andThen
-              dataAccess.methodConfigurationQuery.list(sourceWorkspaceContext).flatMap { methodConfigShorts =>
-                val inserts = methodConfigShorts.map { methodConfigShort => dataAccess.methodConfigurationQuery.get(sourceWorkspaceContext, methodConfigShort.namespace, methodConfigShort.name).flatMap { methodConfig =>
-                  dataAccess.methodConfigurationQuery.save(destWorkspaceContext, methodConfig.get)
+    context flatMap {
+      case RequestComplete(workspace: Workspace) => {
+        dataSource.inTransaction { dataAccess =>
+          dataAccess.entityQuery.lookupEntityAndAttributeCounts(UUID.fromString(workspace.workspaceId))
+        } flatMap { case (numEntities, numAttributes) =>
+          dataSource.inTransaction { dataAccess =>
+            dataAccess.entityIdQuery.takeMany(numEntities) zip dataAccess.attributeIdQuery.takeMany(numAttributes)
+          } flatMap { case (entityIds, attributeIds) =>
+            dataSource.inTransaction { dataAccess =>
+              val sourceWorkspaceContext = SlickWorkspaceContext(workspace)
+              withClonedRealm(sourceWorkspaceContext, destWorkspaceRequest) { newRealm =>
+
+                // add to or replace current attributes, on an individual basis
+                val newAttrs = sourceWorkspaceContext.workspace.attributes ++ destWorkspaceRequest.attributes
+
+                withNewWorkspaceContext(destWorkspaceRequest.copy(realm = newRealm, attributes = newAttrs), dataAccess) { destWorkspaceContext =>
+                  dataAccess.entityQuery.cloneAllEntities(entityIds, attributeIds, sourceWorkspaceContext, destWorkspaceContext) andThen
+                    dataAccess.methodConfigurationQuery.list(sourceWorkspaceContext).flatMap { methodConfigShorts =>
+                      val inserts = methodConfigShorts.map { methodConfigShort => dataAccess.methodConfigurationQuery.get(sourceWorkspaceContext, methodConfigShort.namespace, methodConfigShort.name).flatMap { methodConfig =>
+                        dataAccess.methodConfigurationQuery.save(destWorkspaceContext, methodConfig.get)
+                      }
+                      }
+                      DBIO.seq(inserts: _*)
+                    } andThen {
+                    DBIO.successful(RequestCompleteWithLocation((StatusCodes.Created, destWorkspaceContext.workspace), destWorkspaceRequest.toWorkspaceName.path))
+                  }
                 }
-                }
-                DBIO.seq(inserts: _*)
-              } andThen {
-              DBIO.successful(RequestCompleteWithLocation((StatusCodes.Created, destWorkspaceContext.workspace), destWorkspaceRequest.toWorkspaceName.path))
+              }
             }
           }
         }
       }
+      case other => Future.successful(other)
     }
+  }
 
   private def withClonedRealm(sourceWorkspaceContext: SlickWorkspaceContext, destWorkspaceRequest: WorkspaceRequest)(op: (Option[RawlsGroupRef]) => ReadWriteAction[PerRequestMessage]): ReadWriteAction[PerRequestMessage] = {
     // if the source has a realm, the dest must also have that realm or no realm, and the source realm is applied to the destination

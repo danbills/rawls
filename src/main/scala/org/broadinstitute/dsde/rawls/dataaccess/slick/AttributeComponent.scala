@@ -104,18 +104,16 @@ trait AttributeComponent {
       }
     }
 
-    def batchInsertAttributes(attributes: Seq[AttributeRecord]): ReadWriteAction[Seq[AttributeRecord]] = {
-      attributeIdQuery.takeMany(attributes.size).flatMap { ids =>
-        val recordsWithIds = attributes.zipWithIndex.map { case (a, idx) =>
-          a.copy(id = ids(idx).next)
-        }
-
-        val recordsGrouped = recordsWithIds.grouped(batchSize).toSeq
-        DBIO.sequence(recordsGrouped map { batch =>
-          (attributeQuery ++= batch)
-
-        }).map(_ => recordsWithIds)
+    def batchInsertAttributes(attributeIds: Seq[AttributeIdRecord], attributes: Seq[AttributeRecord]): ReadWriteAction[Seq[AttributeRecord]] = {
+      val recordsWithIds = attributes.zipWithIndex.map { case (a, idx) =>
+        a.copy(id = attributeIds(idx).next)
       }
+
+      val recordsGrouped = recordsWithIds.grouped(batchSize).toSeq
+      DBIO.sequence(recordsGrouped map { batch =>
+        (attributeQuery ++= batch)
+
+      }).map(_ => recordsWithIds)
     }
 
     private def marshalAttributeEntityReference(name: String, listIndex: Option[Int], ref: AttributeEntityReference, entityIdsByRef: Map[AttributeEntityReference, Long]): AttributeRecord = {
