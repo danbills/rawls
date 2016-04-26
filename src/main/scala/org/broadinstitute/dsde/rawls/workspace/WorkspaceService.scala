@@ -334,17 +334,17 @@ class WorkspaceService(protected val userInfo: UserInfo, dataSource: SlickDataSo
 
     val context = dataSource.inTransaction { dataAccess =>
       withWorkspaceContextAndPermissions(sourceWorkspaceName, WorkspaceAccessLevels.Read, dataAccess) { sourceWorkspaceContext =>
-        DBIO.successful(RequestComplete(sourceWorkspaceContext.workspace))
+        DBIO.successful(RequestComplete((sourceWorkspaceContext.workspace, sourceWorkspaceContext.workspace.attributes ++ destWorkspaceRequest.attributes)))
       }
     }
 
     context flatMap {
-      case RequestComplete(workspace: Workspace) => {
+      case RequestComplete((workspace: Workspace, attributes: Map[String, Attribute])) => {
         dataSource.inTransaction { dataAccess =>
           dataAccess.entityQuery.lookupEntityAndAttributeCounts(UUID.fromString(workspace.workspaceId))
         } flatMap { case (numEntities, numAttributes) =>
           dataSource.inTransaction { dataAccess =>
-            dataAccess.entityIdQuery.takeMany(numEntities) zip dataAccess.attributeIdQuery.takeMany(numAttributes)
+            dataAccess.entityIdQuery.takeMany(numEntities) zip dataAccess.attributeIdQuery.takeMany(numAttributes + attributes.size)
           } flatMap { case (entityIds, attributeIds) =>
             dataSource.inTransaction { dataAccess =>
               val sourceWorkspaceContext = SlickWorkspaceContext(workspace)

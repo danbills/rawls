@@ -34,7 +34,8 @@ trait WorkspaceComponent {
     with EntityComponent
     with SubmissionComponent
     with WorkflowComponent
-    with MethodConfigurationComponent =>
+    with MethodConfigurationComponent
+    with SequenceComponent =>
 
   import driver.api._
 
@@ -115,6 +116,8 @@ trait WorkspaceComponent {
               insertWorkspaceAttributeMapping(workspaceRecord, attrId)
             })
           }
+
+          //we will want to batch insert the workspace attributes
 
           DBIO.seq(deleteActions ++ insertActions:_*)
         }
