@@ -292,7 +292,7 @@ trait RawlsEnumeration[T <: RawlsEnumeration[T]] { self: T =>
 
 object WorkflowStatuses {
   val terminalStatuses: Seq[WorkflowStatus] = Seq(Failed, Succeeded, Aborted, Unknown)
-  val runningStatuses: Seq[WorkflowStatus] = Seq(Submitted, Running, Aborting)
+  val runningStatuses: Seq[WorkflowStatus] = Seq(Created, Launching, Submitted, Running, Aborting)
 
   sealed trait WorkflowStatus extends RawlsEnumeration[WorkflowStatus] {
     def isDone = {
@@ -304,6 +304,8 @@ object WorkflowStatuses {
 
   def withName(name: String): WorkflowStatus = {
     name match {
+      case "Created" => Created
+      case "Launching" => Launching
       case "Submitted" => Submitted
       case "Running" => Running
       case "Failed" => Failed
@@ -315,6 +317,8 @@ object WorkflowStatuses {
     }
   }
 
+  case object Created extends WorkflowStatus
+  case object Launching extends WorkflowStatus
   case object Submitted extends WorkflowStatus
   case object Running extends WorkflowStatus
   case object Failed extends WorkflowStatus
