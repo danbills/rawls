@@ -160,6 +160,10 @@ trait WorkflowComponent {
       }
     } map { _ => workflow }
 
+    def batchUpdateStatus(workflowIds: Traversable[Long], status: WorkflowStatuses.WorkflowStatus) = {
+      findWorkflowByIds(workflowIds).map(u => (u.status, u.statusLastChangedDate)).update((status.toString, new Timestamp(DateTime.now.toDate.getTime)))
+    }
+
 
     def deleteWorkflowAction(id: Long) = {
       deleteWorkflowAttributes(id) andThen
@@ -296,6 +300,10 @@ trait WorkflowComponent {
         entity <- entityQuery.findEntityByName(workspaceId, entityType, entityName)
         workflow <- workflowQuery if (workflow.submissionId === submissionId && workflow.workflowEntityId === entity.id)
       } yield workflow
+    }
+
+    def findUnsubmittedWorkflows(): WorkflowQueryType = {
+      filter( _.status === WorkflowStatuses.Created.toString ).sortBy(_.statusLastChangedDate)
     }
 
     def findWorkflowMessagesById(workflowId: Long) = {
