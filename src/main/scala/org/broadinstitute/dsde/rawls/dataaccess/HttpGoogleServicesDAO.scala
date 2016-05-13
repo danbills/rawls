@@ -10,6 +10,7 @@ import com.google.api.client.googleapis.services.AbstractGoogleClientRequest
 import com.google.api.client.http.json.JsonHttpContent
 import com.google.api.client.http.{EmptyContent, HttpResponseException, InputStreamContent}
 import com.typesafe.scalalogging.LazyLogging
+import kamon.Kamon
 import org.broadinstitute.dsde.rawls.RawlsException
 import org.broadinstitute.dsde.rawls.crypto.{EncryptedBytes, Aes256Cbc, SecretKey}
 import org.broadinstitute.dsde.rawls.monitor.BucketDeletionMonitor.{BucketDeleted, DeleteBucket}
@@ -587,17 +588,23 @@ class HttpGoogleServicesDAO(
       }
 
       val start = System.currentTimeMillis()
-      Try {
+      val result = Try {
         request.executeUnparsed()
-      } match {
+      }
+      val durationMs = System.currentTimeMillis() - start
+      Kamon.metrics.histogram("google-request-duration-ms").record(durationMs)
+      result match {
         case Success(response) =>
-          logger.debug(GoogleRequest(request.getRequestMethod, request.buildHttpRequestUrl().toString, payload, System.currentTimeMillis() - start, Option(response.getStatusCode), None).toJson(GoogleRequestFormat).compactPrint)
+          logger.debug(GoogleRequest(request.getRequestMethod, request.buildHttpRequestUrl().toString, payload, durationMs, Option(response.getStatusCode), None).toJson(GoogleRequestFormat).compactPrint)
+          Kamon.metrics.counter("google-request-successes").increment()
           response.parseAs(request.getResponseClass)
         case Failure(httpRegrets: HttpResponseException) =>
-          logger.debug(GoogleRequest(request.getRequestMethod, request.buildHttpRequestUrl().toString, payload, System.currentTimeMillis() - start, Option(httpRegrets.getStatusCode), None).toJson(GoogleRequestFormat).compactPrint)
+          logger.debug(GoogleRequest(request.getRequestMethod, request.buildHttpRequestUrl().toString, payload, durationMs, Option(httpRegrets.getStatusCode), None).toJson(GoogleRequestFormat).compactPrint)
+          Kamon.metrics.counter("google-request-failures").increment()
           throw httpRegrets
         case Failure(regrets) =>
-          logger.debug(GoogleRequest(request.getRequestMethod, request.buildHttpRequestUrl().toString, payload, System.currentTimeMillis() - start, None, Option(ErrorReport(regrets))).toJson(GoogleRequestFormat).compactPrint)
+          logger.debug(GoogleRequest(request.getRequestMethod, request.buildHttpRequestUrl().toString, payload, durationMs, None, Option(ErrorReport(regrets))).toJson(GoogleRequestFormat).compactPrint)
+          Kamon.metrics.counter("google-request-failures").increment()
           throw regrets
       }
     } else {

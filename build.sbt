@@ -23,6 +23,7 @@ resolvers += "artifactory-snapshots" at artifactory + "libs-snapshot"
 
 libraryDependencies ++= {
   val akkaV = "2.3.6"
+  val kamonV = "0.6.0"
   val sprayV = "1.3.2"
   val slickV = "3.1.1"
   Seq(
@@ -52,7 +53,13 @@ libraryDependencies ++= {
     "com.typesafe.akka" %% "akka-testkit" % akkaV % "test",
     "io.spray" %% "spray-testkit" % sprayV % "test",
     "org.scalatest" %% "scalatest" % "2.2.4" % "test",
-    "org.mock-server" % "mockserver-netty" % "3.9.2" % "test"
+    "org.mock-server" % "mockserver-netty" % "3.9.2" % "test",
+    "org.aspectj" % "aspectjweaver" % "1.8.9",
+    "io.kamon" %% "kamon-akka" % kamonV,
+    "io.kamon" %% "kamon-core" % kamonV,
+    "io.kamon" %% "kamon-datadog" % kamonV,
+    "io.kamon" %% "kamon-spray" % kamonV,
+    "io.kamon" %% "kamon-statsd" % kamonV
   )
 }
 
