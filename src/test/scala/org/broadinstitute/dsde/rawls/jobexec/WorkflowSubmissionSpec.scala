@@ -80,6 +80,8 @@ class WorkflowSubmissionSpec(_system: ActorSystem) extends TestKit(_system) with
     val workflowSubmission = new TestWorkflowSubmission(slickDataSource)
 
     withWorkspaceContext(testData.workspace) { ctx =>
+
+      Await.result( workflowSubmission.googleServicesDAO.storeToken(userInfo, UUID.randomUUID.toString), Duration.Inf )
       val workflowIds = runAndWait(workflowQuery.getWithWorkflowIds(ctx, testData.submission1.submissionId)).map(_._1)
 
       Await.result(workflowSubmission.submitWorkflowBatch(workflowIds), Duration.Inf) match {
