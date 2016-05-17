@@ -75,4 +75,20 @@ class WorkflowSubmissionSpec(_system: ActorSystem) extends TestKit(_system) with
       case _ => fail("expected some workflows")
     }
   }
+
+  it should "submit a batch of workflows" in withDefaultTestDatabase {
+    val workflowSubmission = new TestWorkflowSubmission(slickDataSource)
+
+    withWorkspaceContext(testData.workspace) { ctx =>
+      val workflowIds = runAndWait(workflowQuery.getWithWorkflowIds(ctx, testData.submission1.submissionId)).map(_._1)
+
+      Await.result(workflowSubmission.submitWorkflowBatch(workflowIds), Duration.Inf) match {
+        case ScheduleNextWorkflowQuery =>
+          assert({
+            val workflowRecs = runAndWait(workflowQuery.filter(_.id inSetBind workflowIds).result)
+            workflowRecs.forall( _.status == "Submitted" )
+          }, "Not all workflows got submitted?")
+      }
+    }
+  }
 }
