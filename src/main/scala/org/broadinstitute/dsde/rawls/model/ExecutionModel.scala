@@ -60,7 +60,7 @@ case class ExecutionServiceWorkflowOptions(
   account_name: String,
   refresh_token: String,
   auth_bucket: String,
-  defaultRuntimeOptions: Option[JsValue]
+  default_runtime_attributes: Option[JsValue]
 )
 
 // Status of a successfully started workflow

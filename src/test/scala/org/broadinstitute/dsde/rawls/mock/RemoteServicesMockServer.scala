@@ -226,6 +226,7 @@ class RemoteServicesMockServer(port:Int) {
         .withDelay(new Delay(TimeUnit.SECONDS, 2))
     )
 
+
     mockServer.when(
       request()
         .withMethod("POST")
@@ -435,8 +436,30 @@ class RemoteServicesMockServer(port:Int) {
               |  "calls": {}
               |}
             """.stripMargin)
-          .withStatusCode(StatusCodes.Created.intValue)
+          .withStatusCode(StatusCodes.OK.intValue)
       )
+
+    mockServer.when(
+      request()
+        .withMethod("GET")
+        .withPath("/workflows/v1/bad_options/metadata")
+    ).respond(
+      response()
+        .withHeaders(jsonHeader)
+        .withBody(
+          """{
+            | "calls": {
+            |  },
+            |  "id": "bad_options",
+            |  "submission": "2016-06-23T20:11:26.122Z",
+            |  "status": "Failed",
+            |  "failures": ["Workflow contains invalid options JSON: Unsupported key/value pair in WorkflowOptions: defaultRuntimeOptions -> {\"zones\":\"us-central1-b\"}"],
+            |  "end": "2016-06-23T20:11:26.509Z",
+            |  "start": "2016-06-23T20:11:26.137Z"
+            |}
+          """.stripMargin)
+        .withStatusCode(StatusCodes.OK.intValue)
+    )
   }
 
   def stopServer = mockServer.stop()

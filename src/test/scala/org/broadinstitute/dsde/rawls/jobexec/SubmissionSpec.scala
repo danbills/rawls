@@ -75,7 +75,7 @@ class SubmissionSpec(_system: ActorSystem) extends TestKit(_system) with FlatSpe
     val alreadyTerminatedWorkflowId = Option("45def17d-40c2-44cc-89bf-9e77bc2c8778")
     
     
-    
+
     val submissionTestAbortMissingWorkflow = Submission(subMissingWorkflow,testDate, testData.userOwner, "std","someMethod",sample1.toReference,
       Seq(Workflow(nonExistingWorkflowId,WorkflowStatuses.Submitted,testDate,sample1.toReference, testData.inputResolutions)),
       Seq.empty[WorkflowFailure], SubmissionStatuses.Submitted)
