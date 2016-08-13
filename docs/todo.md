@@ -20,8 +20,9 @@ List of things to cover.
 encourage TDD with these.
 
 - add a set attribute type
+  - ...and write the database migration script!
 - expression parsing: implement literals
-- implement single-entity expression evaluation
+- implement endpoint to evaluate an expression on a single entity
 - bucket deletion monitor
 - abort a submission
   - compare and contrast the obvious solution (forall workflows cromwell.abort) to what we actually do
