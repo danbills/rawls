@@ -23,6 +23,7 @@ encourage TDD with these.
   - ...and write the database migration script!
 - expression parsing: implement literals
 - implement endpoint to evaluate an expression on a single entity
+- multi cromwells
 - bucket deletion monitor
 - abort a submission
   - compare and contrast the obvious solution (forall workflows cromwell.abort) to what we actually do
