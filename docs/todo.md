@@ -39,6 +39,7 @@ encourage TDD with these.
 - map vs flatmap (in the context of futures, also other monads)
 - actors
 - slick
+  - raw sql
 - talking to external services
 - ...
 
