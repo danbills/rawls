@@ -78,7 +78,7 @@ Back on your [local Swagger page](https://localhost), open `workspaces` and hit 
 
 If you're completely new to Scala, there are a few things we recommend:
 
-http://danielwestheide.com/scala/neophytes.html
-https://twitter.github.io/scala_school/ scala school
+* [The Neophyte's Guide to Scala](http://danielwestheide.com/scala/neophytes.html)
+* [Scala School](https://twitter.github.io/scala_school/) by Twitter
 
-Ready to write some code? [Onward!](01 - Ping.md).
+Ready to write some code? [Onward!](01 - Ping.md)
