@@ -19,9 +19,9 @@ Let's install a lot of things.
 
 From your command line:
 
-* Pull the repo from GitHub
-* Check out this rampup branch
-* Make your own branch and push it back to GitHub
+* Pull the repo from GitHub;
+* Check out this rampup branch;
+* Make your own branch and push it back to GitHub. For the purposes of these exercises, this will be your version of the "develop" branch - the place where you'll eventually merge all your feature branches.
 
 ```
 git clone git@github.com:broadinstitute/rawls.git

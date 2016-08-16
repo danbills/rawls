@@ -57,13 +57,21 @@ git push
 
 ## Opening a Pull Request
 
-Head over to the [Rawls repo on GitHub](https://github.com/broadinstitute/rawls). You'll probably see a notification at the top saying "You recently pushed branches" and then your branch - if you do hit the green "Compare & pull request" button.
+Head over to the [Rawls repo on GitHub](https://github.com/broadinstitute/rawls). You'll probably see a notification at the top saying "You recently pushed branches" and then your branch - if you do hit the green "Compare & pull request" button. If not, just hit the "New pull request button".
 
-If not, just hit the "New pull request button". Change your base branch to the `YOURINITIALS_rampup` you made ages ago, and the compare branch to `YOURINITIALS_rampup_01` that you made for this exercise. You should see all your commits and changes. Go ahead and open the pull request.
+Pull requests are how we get code from your branch - where you've been working on your feature in isolation - into the main development branch. It gives other developers an opportunity to review your changes before they get merged. Most of our repos will automatically populate a pull request template full of checkboxes that guide you through the PR process.
 
-todo:
+Change your base branch to the `YOURINITIALS_rampup` you made ages ago, and the compare branch to `YOURINITIALS_rampup_01` that you made for this exercise. Name the PR something sensible - when you're working on tickets in JIRA, you should put the issue number here along with a brief description.
 
-- go through the tickboxes
-- actually make someone review it
+### The Pull Request process
 
-onwards!
+Go ahead and open the pull request. You should see all your commits and their changes in a diff view. The checkboxes will walk you through what to do next, but the important ones:
+
+* Pull requests are reviewed by at least two people: the project's tech lead, and one other developer chosen to be Lead Reviewer. The tech lead will usually give the PR a once-over; the LR has the main responsibility for reviewing.
+* You can choose the LR yourself if you think a particular person would be best suited. Otherwise, you can [spin the wheel](http://broad.io/foobarwheel) to pick someone at random!
+* The tech lead and LR might give you feedback that require more changes. You can add them as new commits to the branch, push it to GitHub again, and that will automagically update the PR.
+* Once the tech lead and LR have given you a thumbs up, you're good for the final run through of checkboxes. These are basically "make sure the tests go green" and "hit the merge button". Note that GitHub will squash your commits for you if you ask it to (which you should).
+
+# Onward!
+
+Congratulations - you've done your first feature! The next exercises will take you on a tour through the codebase.
