@@ -3,14 +3,16 @@ package org.broadinstitute.dsde.rawls.dataaccess.slick
 import java.sql.Timestamp
 import java.util.UUID
 
-import org.broadinstitute.dsde.rawls.{RawlsExceptionWithErrorReport, RawlsException}
+import org.broadinstitute.dsde.rawls.{RawlsException, RawlsExceptionWithErrorReport}
 import org.broadinstitute.dsde.rawls.dataaccess.SlickWorkspaceContext
 import org.broadinstitute.dsde.rawls.model._
 import slick.ast.TypedType
+import slick.dbio.DBIOAction
 import slick.dbio.Effect.{Read, Write}
 import slick.driver.JdbcDriver
 import slick.profile.FixedSqlAction
 import spray.http.StatusCodes
+
 import reflect.runtime.universe._
 
 /**
@@ -132,31 +134,26 @@ trait AttributeComponent {
      * @param name
      * @param attribute
      * @param workspaceId used only for AttributeEntityReferences (or lists of them) to resolve the reference within the workspace
-     * @return a sequence of write actions the resulting value being the attribute id inserted
+     * @return a write action having inserted the attributes
      */
-    def insertAttributeRecords(ownerId: OWNER_ID, name: String, attribute: Attribute, workspaceId: UUID): Seq[ReadWriteAction[Int]] = {
-
-      def insertEmpty : Seq[ReadWriteAction[Int]] = {
-        //NOTE: listIndex of -1 is the magic number for "empty list". see unmarshalList
-        Seq(insertAttributeValue(ownerId, name, AttributeNull, Option(-1), Option(0)))
+    def insertAttributeRecords(ownerId: OWNER_ID, name: String, attribute: Attribute, workspaceId: UUID): ReadWriteAction[Int] = {
+      val entityIdMapQ = attribute match {
+        case AttributeEntityReferenceList(refs) =>
+          //go look up the entities and make the map
+          entityQuery.lookupEntitiesByNames(workspaceId, refs) map { records =>
+            (records map {
+              aRec => AttributeEntityReference(aRec.entityType, aRec.name) -> aRec.id
+            }).toMap
+          }
+        case _ => DBIO.successful(Map.empty[AttributeEntityReference, Long])
       }
 
-      attribute match {
-        case AttributeEmptyList => insertEmpty
-        //convert empty AttributeList types to AttributeEmptyList on save
-        case AttributeEntityReferenceList(refs) if refs.isEmpty => insertEmpty
-        case AttributeValueList(values) if values.isEmpty => insertEmpty
-
-        case AttributeEntityReferenceList(refs) =>
-          assertConsistentReferenceListMembers(refs)
-          refs.zipWithIndex.map { case (ref, index) => insertAttributeRef(ownerId, name, workspaceId, ref, Option(index), Option(refs.length))}
-        case AttributeValueList(values) =>
-          assertConsistentValueListMembers(values)
-          values.zipWithIndex.map { case (value, index) => insertAttributeValue(ownerId, name, value, Option(index), Option(values.length))}
-        case value: AttributeValue => Seq(insertAttributeValue(ownerId, name, value))
-        case ref: AttributeEntityReference => Seq(insertAttributeRef(ownerId, name, workspaceId, ref))
+      entityIdMapQ flatMap { lookup =>
+        val records = marshalAttribute(ownerId, name, attribute, lookup)
+        insertInBatches(this, records) map { _ => records.size }
       }
     }
+
 
     private def insertAttributeRef(ownerId: OWNER_ID, name: String, workspaceId: UUID, ref: AttributeEntityReference, listIndex: Option[Int] = None, listLength: Option[Int] = None): ReadWriteAction[Int] = {
       entityQuery.findEntityByName(workspaceId, ref.entityType, ref.entityName).result.flatMap {
@@ -221,7 +218,7 @@ trait AttributeComponent {
       createRecord(0, ownerId, name, valueString, valueNumber, valueBoolean, None, listIndex, listLength)
     }
 
-    def deleteAttributeRecords(attributeRecords: Seq[RECORD]): DBIOAction[Int, NoStream, Write] = {
+    def deleteAttributeRecords(attributeRecords: Seq[RECORD]): WriteAction[Int] = {
       filter(_.id inSetBind attributeRecords.map(_.id)).delete
     }
 

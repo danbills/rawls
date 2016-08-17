@@ -8,6 +8,7 @@ import org.broadinstitute.dsde.rawls.dataaccess.{ExecutionServiceCluster, Execut
 import org.broadinstitute.dsde.rawls.model._
 import org.broadinstitute.dsde.rawls.model.WorkflowStatuses.WorkflowStatus
 import org.joda.time.DateTime
+import slick.dbio.DBIOAction
 import slick.dbio.Effect.{Read, Write}
 import slick.driver.JdbcDriver
 import slick.jdbc.GetResult
@@ -186,15 +187,15 @@ trait WorkflowComponent {
     }
 
     def saveInputResolutions(workspaceContext: SlickWorkspaceContext, values: Seq[SubmissionValidationValue], parentId: WorkflowId) = {
-        DBIO.seq(values.map { case (v) =>
-          v.value match {
-            case None => (submissionValidationQuery += marshalInputResolution(v, parentId.id))
-            case Some(attr) =>
-              ((submissionValidationQuery returning submissionValidationQuery.map(_.id)) += marshalInputResolution(v, parentId.id)) flatMap { validationId =>
-                DBIO.sequence(submissionAttributeQuery.insertAttributeRecords(validationId, v.inputName, attr, workspaceContext.workspaceId))
-              }
-          }
-        }: _*)
+      DBIO.seq(values.map { case (v) =>
+        v.value match {
+          case None => (submissionValidationQuery += marshalInputResolution(v, parentId.id))
+          case Some(attr) =>
+            ((submissionValidationQuery returning submissionValidationQuery.map(_.id)) += marshalInputResolution(v, parentId.id)) flatMap { validationId =>
+              submissionAttributeQuery.insertAttributeRecords(validationId, v.inputName, attr, workspaceContext.workspaceId)
+            }
+        }
+      }: _*)
     }
 
     def saveMessages(messages: Seq[AttributeString], workflowId: Long) = {
@@ -484,7 +485,7 @@ trait WorkflowComponent {
       AttributeEntityReference(entityRec.entityType, entityRec.name)
     }
 
-    private def deleteMessagesAndInputs(id: Long): DBIOAction[Int, NoStream, Write with Write] = {
+    private def deleteMessagesAndInputs(id: Long): WriteAction[Int] = {
         findWorkflowMessagesById(id).delete andThen
           findInputResolutionsByWorkflowId(id).delete
     }
