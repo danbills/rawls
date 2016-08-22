@@ -2,7 +2,7 @@
 
 When the user deletes a workspace, we also delete the Google bucket associated with it. Unfortunately, Google doesn't allow you to delete a bucket that has items in it, and it'd be prohibitively slow to list all bucket items and delete them one by one.
 
-While Google doesn't have a "delete everything in this bucket" API call, it *does* have a call to set up [lifecycle management](https://cloud.google.com/storage/docs/lifecycle) on objects in the bucket. Using lifecycle rules, you can specify that Google should auto-delete all objects older than a certain age.
+While Google doesn't have a "delete everything in this bucket" API call, it *does* have a call to set up [lifecycle management](https://cloud.google.com/storage/docs/lifecycle) on objects in the bucket. Using lifecycle rules, you can specify that Google should auto-delete all objects older than a certain age. Like zero.
 
 Your predecessor has written some code in `HttpGoogleServicesDAO.scala` that does this, but we've discovered that Google only applies the lifecycle rules once a day - so this won't happen instantaneously. The code currently retries until it's successful, but if we restart Rawls, we'll forget that we were retrying, and the bucket will never get deleted.
 
@@ -26,7 +26,7 @@ If you would like to read too much information on Akka Actors, try [here](http:/
 
 * An Actor is an object that lives in its own thread.
 * Communication between Actors uses messages: `someActor ! MyMessageType(some, message, parameters)` sends a message of `MyMessageType` to `someActor`.
-* You can look up Actors by name using `system.actorSelection()`, but this is slow; you almost certainly want to pass a reference to your actor into the function or class that wants to send messages to it.
+* You can look up Actors by name using `system.actorSelection()`, but this is slow; wherever possible, you want to pass a reference to your actor into the function or class that wants to send messages to it.
 * Actors receive messages in their `def receive` function, and decide what to do with them there.
   * You've seen this before: remember that call to `listWorkspaces()` you looked at back in the Ping exercise? `WorkspaceApiService` sends a `ListWorkspaces` message to `WorkspaceService` (hidden inside the `perRequest` call), which turns it into `listWorkspaces()` call in its `def receive`.
 
