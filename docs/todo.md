@@ -14,6 +14,8 @@ List of things to cover.
 
 - bucket deletion monitor
   - BucketDeletionMonitor.scala, bits in BootMonitors and HttpGoogleDAO
+  - move the pendingBucketDeletionQuery updates from BucketDeletionMonitor to HttpGoogleDAO
+  - make an explicit note after `executeGoogleRequest(deleter)` that the following line may never execute if the request throws an exception
 
 ### tech tasks
 
