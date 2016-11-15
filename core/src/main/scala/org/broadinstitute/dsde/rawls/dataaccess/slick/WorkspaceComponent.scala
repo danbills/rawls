@@ -29,6 +29,14 @@ case class WorkspaceRecord(
 
 case class WorkspaceAccessRecord(workspaceId: UUID, groupName: String, accessLevel: String, isRealmAcl: Boolean)
 
+case class PendingWorkspaceAccessRecord(
+  workspaceId: UUID,
+  userEmail: String,
+  originSubjectId: String,
+  inviteDate: Timestamp,
+  accessLevel: String
+)
+
 trait WorkspaceComponent {
   this: DriverComponent
     with AttributeComponent
@@ -73,7 +81,23 @@ trait WorkspaceComponent {
     def * = (workspaceId, groupName, accessLevel, isRealmAcl) <> (WorkspaceAccessRecord.tupled, WorkspaceAccessRecord.unapply)
   }
 
+  class PendingWorkspaceAccessTable(tag: Tag) extends Table[PendingWorkspaceAccessRecord](tag, "PENDING_WORKSPACE_ACCESS") {
+    def workspaceId = column[UUID]("workspace_id")
+    def userEmail = column[String]("user_email", O.Length(254))
+    def originSubjectId = column[String]("origin_subject_id", O.Length(254))
+    def inviteDate = column[Timestamp]("invite_date", O.SqlType("TIMESTAMP(6)"), O.Default(defaultTimeStamp))
+    def accessLevel = column[String]("access_level", O.Length(254))
+
+    def workspace = foreignKey("FK_PENDING_WS_ACCESS_WORKSPACE", workspaceId, workspaceQuery)(_.id)
+    def originUser = foreignKey("FK_PENDING_WS_ACCESS_ORIGIN_USER", originSubjectId, rawlsUserQuery)(_.userSubjectId)
+
+    def pendingAccessPrimaryKey = primaryKey("PK_PENDING_WORKSPACE_ACCESS", (workspaceId, userEmail)) //only allow one invite per user per workspace
+
+    def * = (workspaceId, userEmail, originSubjectId, inviteDate, accessLevel) <> (PendingWorkspaceAccessRecord.tupled, PendingWorkspaceAccessRecord.unapply)
+  }
+
   protected val workspaceAccessQuery = TableQuery[WorkspaceAccessTable]
+  protected val pendingWorkspaceAccessQuery = TableQuery[PendingWorkspaceAccessTable]
 
   object workspaceQuery extends TableQuery(new WorkspaceTable(_)) {
     private type WorkspaceQueryType = driver.api.Query[WorkspaceTable, WorkspaceRecord, Seq]
@@ -183,6 +207,15 @@ trait WorkspaceComponent {
 
     def unlock(workspaceName: WorkspaceName): ReadWriteAction[Int] = {
       findByNameQuery(workspaceName).map(_.isLocked).update(false)
+    }
+
+    //use marsal method
+    def saveInvite(workspaceId: UUID, userEmail: String, accessLevel: WorkspaceAccessLevels.WorkspaceAccessLevel, originUser: String): ReadWriteAction[Boolean] = {
+      pendingWorkspaceAccessQuery insertOrUpdate(PendingWorkspaceAccessRecord(workspaceId, userEmail, originUser, new Timestamp(DateTime.now.getMillis), accessLevel.toString)) map { count => count == 1 }
+    }
+
+    def removeInvite(workspaceId: UUID, userEmail: String): ReadWriteAction[Boolean] = {
+      pendingWorkspaceAccessQuery.filter(rec => rec.workspaceId === workspaceId && rec.userEmail === userEmail).delete.map { count => count == 1 }
     }
     
     def listEmailsAndAccessLevel(workspaceContext: SlickWorkspaceContext): ReadAction[Seq[(String, WorkspaceAccessLevel)]] = {
@@ -439,6 +472,8 @@ trait WorkspaceComponent {
         }
       }
     }
+
+    //private def marshalWorkspaceInvite()
 
     private def marshalNewWorkspace(workspace: Workspace) = {
       WorkspaceRecord(workspace.namespace, workspace.name, UUID.fromString(workspace.workspaceId), workspace.bucketName, new Timestamp(workspace.createdDate.getMillis), new Timestamp(workspace.lastModified.getMillis), workspace.createdBy, workspace.isLocked, workspace.realm.map(_.groupName.value), 0)

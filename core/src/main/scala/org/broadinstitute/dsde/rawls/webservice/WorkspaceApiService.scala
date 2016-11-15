@@ -99,6 +99,26 @@ trait WorkspaceApiService extends HttpService with PerRequestCreator with UserIn
             WorkspaceService.UnlockWorkspace(WorkspaceName(workspaceNamespace, workspaceName)))
         }
       }
+    } ~
+    path("workspaces" / Segment / Segment / "invite" ) { (workspaceNamespace, workspaceName) =>
+      post {
+        requireUserInfo() { userInfo =>
+          entity(as[WorkspaceACLUpdate]) { invite =>
+            requestContext => perRequest(requestContext, WorkspaceService.props(workspaceServiceConstructor, userInfo),
+              WorkspaceService.CreateWorkspaceInvite(WorkspaceName(workspaceNamespace, workspaceName), invite.email, invite.accessLevel, userInfo.userSubjectId))
+          }
+        }
+      }
+    } ~
+    path("workspaces" / Segment / Segment / "invite" ) { (workspaceNamespace, workspaceName) =>
+      delete {
+        requireUserInfo() { userInfo =>
+          entity(as[WorkspaceACLUpdate]) { invite =>
+            requestContext => perRequest(requestContext, WorkspaceService.props(workspaceServiceConstructor, userInfo),
+              WorkspaceService.RemoveWorkspaceInvite(WorkspaceName(workspaceNamespace, workspaceName), invite.email))
+          }
+        }
+      }
     }
   }
 }
