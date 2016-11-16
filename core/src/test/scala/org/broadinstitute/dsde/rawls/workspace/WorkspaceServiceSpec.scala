@@ -429,7 +429,7 @@ class WorkspaceServiceSpec extends FlatSpec with ScalatestRouteTest with Matcher
     }
   }
 
-  it should "return non-existent users during patch ACLs if a user doesn't exist" in withTestDataServices { services =>
+  it should "return non-existent users during patch ACLs" in withTestDataServices { services =>
     testData.workspace.accessLevels.foreach { case (_, groupRef) => Await.result(services.gcsDAO.createGoogleGroup(groupRef), Duration.Inf) }
 
     val aclUpdates = Seq(WorkspaceACLUpdate("obama@whitehouse.gov", WorkspaceAccessLevels.Owner))
@@ -439,6 +439,48 @@ class WorkspaceServiceSpec extends FlatSpec with ScalatestRouteTest with Matcher
 
     assertResult((StatusCodes.OK, responseFromUpdate), "Add ACL shouldn't error") {
       vComplete.response
+    }
+  }
+
+  it should "invite a user to a workspace" in withTestDataServices { services =>
+    val vComplete = Await.result(services.workspaceService.createWorkspaceInvite(testData.workspace.toWorkspaceName, "obama@whitehouse.gov", WorkspaceAccessLevels.Owner, testData.userOwner.userSubjectId.value), Duration.Inf)
+      .asInstanceOf[RequestComplete[StatusCode]]
+
+    assertResult(StatusCodes.OK, "Invite user shouldn't error") {
+      vComplete.response
+    }
+  }
+
+  it should "update an existing workspace invitation to change access levels" in withTestDataServices { services =>
+    Await.result(services.workspaceService.createWorkspaceInvite(testData.workspace.toWorkspaceName, "obama@whitehouse.gov", WorkspaceAccessLevels.Owner, testData.userOwner.userSubjectId.value), Duration.Inf)
+
+    val vComplete1 = Await.result(services.workspaceService.getACL(testData.workspace.toWorkspaceName), Duration.Inf)
+      .asInstanceOf[RequestComplete[(StatusCode, WorkspaceACL)]]
+
+    assert(vComplete1.response._2.pending.toSeq.contains(("obama@whitehouse.gov", WorkspaceAccessLevels.Owner)))
+
+    Await.result(services.workspaceService.createWorkspaceInvite(testData.workspace.toWorkspaceName, "obama@whitehouse.gov", WorkspaceAccessLevels.Read, testData.userOwner.userSubjectId.value), Duration.Inf)
+
+    val vComplete2 = Await.result(services.workspaceService.getACL(testData.workspace.toWorkspaceName), Duration.Inf)
+      .asInstanceOf[RequestComplete[(StatusCode, WorkspaceACL)]]
+
+    assert(vComplete2.response._2.pending.toSeq.contains(("obama@whitehouse.gov", WorkspaceAccessLevels.Read)))
+
+  }
+
+  it should "remove a user invite from a workspace" in withTestDataServices { services =>
+    val vComplete = Await.result(services.workspaceService.createWorkspaceInvite(testData.workspace.toWorkspaceName, "obama@whitehouse.gov", WorkspaceAccessLevels.Owner, testData.userOwner.userSubjectId.value), Duration.Inf)
+      .asInstanceOf[RequestComplete[StatusCode]]
+
+    assertResult(StatusCodes.OK, "Invite user shouldn't error") {
+      vComplete.response
+    }
+
+    val vComplete2 = Await.result(services.workspaceService.removeWorkspaceInvite(testData.workspace.toWorkspaceName, "obama@whitehouse.gov"), Duration.Inf)
+      .asInstanceOf[RequestComplete[StatusCode]]
+
+    assertResult(StatusCodes.OK, "Remove invite shouldn't error") {
+      vComplete2.response
     }
   }
 
