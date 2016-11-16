@@ -507,7 +507,7 @@ class WorkspaceService(protected val userInfo: UserInfo, val dataSource: SlickDa
       withWorkspaceContextAndPermissions(workspaceName, WorkspaceAccessLevels.Owner, dataAccess) { workspaceContext =>
         dataAccess.workspaceQuery.saveInvite(workspaceContext.workspaceId, userEmail, originSubjectId, accessLevel) map {
           case true => RequestComplete(StatusCodes.OK)
-          case false => RequestComplete(StatusCodes.InternalServerError, s"Unable to generate invite for ${userEmail} on ${workspaceName} with access level ${accessLevel}")
+          case false => RequestComplete(StatusCodes.InternalServerError, s"Unable to generate invite for ${userEmail} to ${workspaceName} with access level ${accessLevel}")
         }
       }
     }
