@@ -210,12 +210,22 @@ trait WorkspaceComponent {
     }
 
     //use marsal method
-    def saveInvite(workspaceId: UUID, userEmail: String, accessLevel: WorkspaceAccessLevels.WorkspaceAccessLevel, originUser: String): ReadWriteAction[Boolean] = {
+    def saveInvite(workspaceId: UUID, userEmail: String, accessLevel: WorkspaceAccessLevel, originUser: String): ReadWriteAction[Boolean] = {
       pendingWorkspaceAccessQuery insertOrUpdate(PendingWorkspaceAccessRecord(workspaceId, userEmail, originUser, new Timestamp(DateTime.now.getMillis), accessLevel.toString)) map { count => count == 1 }
     }
 
     def removeInvite(workspaceId: UUID, userEmail: String): ReadWriteAction[Boolean] = {
       pendingWorkspaceAccessQuery.filter(rec => rec.workspaceId === workspaceId && rec.userEmail === userEmail).delete.map { count => count == 1 }
+    }
+
+    def getInvites(workspaceId: UUID): ReadAction[Seq[(String, WorkspaceAccessLevel)]] = {
+      (pendingWorkspaceAccessQuery.filter(_.workspaceId === workspaceId).map(rec => (rec.userEmail, rec.accessLevel))).result.map(_.map {case (email, access) =>
+        (email, WorkspaceAccessLevels.withName(access))
+      })
+    }
+
+    def deleteWorkspaceInvites(workspaceId: UUID) = {
+      pendingWorkspaceAccessQuery.filter(_.workspaceId === workspaceId).delete
     }
     
     def listEmailsAndAccessLevel(workspaceContext: SlickWorkspaceContext): ReadAction[Seq[(String, WorkspaceAccessLevel)]] = {

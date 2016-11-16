@@ -100,7 +100,7 @@ trait WorkspaceApiService extends HttpService with PerRequestCreator with UserIn
         }
       }
     } ~
-    path("workspaces" / Segment / Segment / "invite" ) { (workspaceNamespace, workspaceName) =>
+    path("workspaces" / Segment / Segment / "invites" ) { (workspaceNamespace, workspaceName) =>
       post {
         requireUserInfo() { userInfo =>
           entity(as[WorkspaceACLUpdate]) { invite =>
@@ -110,7 +110,7 @@ trait WorkspaceApiService extends HttpService with PerRequestCreator with UserIn
         }
       }
     } ~
-    path("workspaces" / Segment / Segment / "invite" ) { (workspaceNamespace, workspaceName) =>
+    path("workspaces" / Segment / Segment / "invites" ) { (workspaceNamespace, workspaceName) =>
       delete {
         requireUserInfo() { userInfo =>
           entity(as[WorkspaceACLUpdate]) { invite =>

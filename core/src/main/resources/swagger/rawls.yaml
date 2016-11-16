@@ -3019,7 +3019,7 @@ paths:
             - openid
             - email
             - profile
-  '/api/workspaces/{workspaceNamespace}/{workspaceName}/invite':
+  '/api/workspaces/{workspaceNamespace}/{workspaceName}/invites':
     post:
       responses:
         '200':

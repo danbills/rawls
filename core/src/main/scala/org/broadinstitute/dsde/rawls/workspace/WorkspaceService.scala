@@ -59,7 +59,7 @@ object WorkspaceService {
   case class UnlockWorkspace(workspaceName: WorkspaceName) extends WorkspaceServiceMessage
   case class CheckBucketReadAccess(workspaceName: WorkspaceName) extends WorkspaceServiceMessage
   case class GetWorkspaceStatus(workspaceName: WorkspaceName, userSubjectId: Option[String]) extends WorkspaceServiceMessage
-  case class CreateWorkspaceInvite(workspaceName: WorkspaceName, userEmail: String, accessLevel: WorkspaceAccessLevels.WorkspaceAccessLevel, originSubjectId: String) extends WorkspaceServiceMessage
+  case class CreateWorkspaceInvite(workspaceName: WorkspaceName, userEmail: String, accessLevel: WorkspaceAccessLevel, originSubjectId: String) extends WorkspaceServiceMessage
   case class RemoveWorkspaceInvite(workspaceName: WorkspaceName, userEmail: String) extends WorkspaceServiceMessage
 
   case class CreateEntity(workspaceName: WorkspaceName, entity: Entity) extends WorkspaceServiceMessage
@@ -293,6 +293,7 @@ class WorkspaceService(protected val userInfo: UserInfo, val dataSource: SlickDa
         _ <- DBIO.seq(dataAccess.workspaceQuery.deleteWorkspaceSubmissions(workspaceContext.workspaceId))
         _ <- DBIO.seq(dataAccess.workspaceQuery.deleteWorkspaceMethodConfigs(workspaceContext.workspaceId))
         _ <- dataAccess.workspaceQuery.deleteWorkspaceEntitiesAndAttributes(workspaceContext.workspaceId)
+        _ <- dataAccess.workspaceQuery.deleteWorkspaceInvites(workspaceContext.workspaceId)
 
         // Delete groups
         _ <- DBIO.seq(deleteGroups(dataAccess).toSeq: _*)
@@ -439,10 +440,12 @@ class WorkspaceService(protected val userInfo: UserInfo, val dataSource: SlickDa
     dataSource.inTransaction { dataAccess =>
       withWorkspaceContext(workspaceName, dataAccess) { workspaceContext =>
         requireOwnerIgnoreLock(workspaceContext.workspace, dataAccess) {
-          dataAccess.workspaceQuery.listEmailsAndAccessLevel(workspaceContext).map { emailsAndAccess =>
-            // toMap below will drop duplicate keys, keeping the last entry only
-            // sort by access level to make sure higher access levels remain in the resulting map
-            RequestComplete(StatusCodes.OK, emailsAndAccess.sortBy { case (_, accessLevel) => accessLevel }.toMap)
+          dataAccess.workspaceQuery.listEmailsAndAccessLevel(workspaceContext).flatMap { emailsAndAccess =>
+            dataAccess.workspaceQuery.getInvites(workspaceContext.workspaceId).map { invites =>
+              // toMap below will drop duplicate keys, keeping the last entry only
+              // sort by access level to make sure higher access levels remain in the resulting map
+              RequestComplete(StatusCodes.OK, WorkspaceACL(emailsAndAccess.sortBy { case (_, accessLevel) => accessLevel }.toMap, invites.sortBy { case (_, accessLevel) => accessLevel }.toMap))
+            }
           }
         }
       }
@@ -497,10 +500,10 @@ class WorkspaceService(protected val userInfo: UserInfo, val dataSource: SlickDa
 
   def createWorkspaceInvite(workspaceName: WorkspaceName, userEmail: String, accessLevel: WorkspaceAccessLevels.WorkspaceAccessLevel, originSubjectId: String): Future[PerRequestMessage] = {
     dataSource.inTransaction { dataAccess =>
-      withWorkspaceContext(workspaceName, dataAccess) { workspaceContext =>
+      withWorkspaceContextAndPermissions(workspaceName, WorkspaceAccessLevels.Owner, dataAccess) { workspaceContext =>
         dataAccess.workspaceQuery.saveInvite(workspaceContext.workspaceId, userEmail, accessLevel, originSubjectId) map {
-          case true => RequestComplete(StatusCodes.OK, "foo")
-          case false => RequestComplete(StatusCodes.Conflict, "bar")
+          case true => RequestComplete(StatusCodes.OK)
+          case false => RequestComplete(StatusCodes.InternalServerError, s"Unable to generate invite for ${userEmail} on ${workspaceName} with access level ${accessLevel}")
         }
       }
     }
@@ -508,10 +511,10 @@ class WorkspaceService(protected val userInfo: UserInfo, val dataSource: SlickDa
 
   def removeWorkspaceInvite(workspaceName: WorkspaceName, userEmail: String): Future[PerRequestMessage] = {
     dataSource.inTransaction { dataAccess =>
-      withWorkspaceContext(workspaceName, dataAccess) { workspaceContext =>
+      withWorkspaceContextAndPermissions(workspaceName, WorkspaceAccessLevels.Owner, dataAccess) { workspaceContext =>
         dataAccess.workspaceQuery.removeInvite(workspaceContext.workspaceId, userEmail) map {
-          case true => RequestComplete(StatusCodes.NoContent)
-          case false => RequestComplete(StatusCodes.NotFound)
+          case true => RequestComplete(StatusCodes.OK)
+          case false => RequestComplete(StatusCodes.NotFound, s"A pending invitation for ${userEmail} was not found in the system")
         }
       }
     }
@@ -530,8 +533,7 @@ class WorkspaceService(protected val userInfo: UserInfo, val dataSource: SlickDa
       refsToUpdateByEmail <- dataAccess.rawlsGroupQuery.loadRefsFromEmails(aclUpdates.map(_.email))
       existingRefsAndLevels <- dataAccess.workspaceQuery.findWorkspaceUsersByAccessLevel(workspaceContext.workspaceId)
     } yield {
-      //val emailsNotFound = aclUpdates.map(_.email).diff(refsToUpdateByEmail.keySet.toSeq)
-      val emailsNotFound = aclUpdates.filterNot(x => refsToUpdateByEmail.keySet.contains(x.email))
+      val emailsNotFound = aclUpdates.filterNot(aclChange => refsToUpdateByEmail.keySet.contains(aclChange.email))
 
       // match up elements of aclUpdates and refsToUpdateByEmail ignoring unfound emails
       val refsToUpdateAndAccessLevel = aclUpdates.map { aclUpdate => refsToUpdateByEmail.get(aclUpdate.email) -> aclUpdate.accessLevel }.collect {
