@@ -210,8 +210,8 @@ trait WorkspaceComponent {
     }
 
     //use marsal method
-    def saveInvite(workspaceId: UUID, userEmail: String, accessLevel: WorkspaceAccessLevel, originUser: String): ReadWriteAction[Boolean] = {
-      pendingWorkspaceAccessQuery insertOrUpdate(PendingWorkspaceAccessRecord(workspaceId, userEmail, originUser, new Timestamp(DateTime.now.getMillis), accessLevel.toString)) map { count => count == 1 }
+    def saveInvite(workspaceId: UUID, userEmail: String, originUser: String, accessLevel: WorkspaceAccessLevel): ReadWriteAction[Boolean] = {
+      pendingWorkspaceAccessQuery insertOrUpdate(marshalWorkspaceInvite(workspaceId, userEmail, originUser, accessLevel)) map { count => count == 1 }
     }
 
     def removeInvite(workspaceId: UUID, userEmail: String): ReadWriteAction[Boolean] = {
@@ -483,7 +483,9 @@ trait WorkspaceComponent {
       }
     }
 
-    //private def marshalWorkspaceInvite()
+    private def marshalWorkspaceInvite(workspaceId: UUID, userEmail: String, originUser: String, accessLevel: WorkspaceAccessLevel) = {
+      PendingWorkspaceAccessRecord(workspaceId, userEmail, originUser, new Timestamp(DateTime.now.getMillis), accessLevel.toString)
+    }
 
     private def marshalNewWorkspace(workspace: Workspace) = {
       WorkspaceRecord(workspace.namespace, workspace.name, UUID.fromString(workspace.workspaceId), workspace.bucketName, new Timestamp(workspace.createdDate.getMillis), new Timestamp(workspace.lastModified.getMillis), workspace.createdBy, workspace.isLocked, workspace.realm.map(_.groupName.value), 0)

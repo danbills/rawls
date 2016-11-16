@@ -444,7 +444,11 @@ class WorkspaceService(protected val userInfo: UserInfo, val dataSource: SlickDa
             dataAccess.workspaceQuery.getInvites(workspaceContext.workspaceId).map { invites =>
               // toMap below will drop duplicate keys, keeping the last entry only
               // sort by access level to make sure higher access levels remain in the resulting map
-              RequestComplete(StatusCodes.OK, WorkspaceACL(emailsAndAccess.sortBy { case (_, accessLevel) => accessLevel }.toMap, invites.sortBy { case (_, accessLevel) => accessLevel }.toMap))
+              RequestComplete(
+                StatusCodes.OK,
+                WorkspaceACL(emailsAndAccess.sortBy { case (_, accessLevel) => accessLevel }.toMap,
+                invites.sortBy { case (_, accessLevel) => accessLevel }.toMap)
+              )
             }
           }
         }
@@ -480,8 +484,8 @@ class WorkspaceService(protected val userInfo: UserInfo, val dataSource: SlickDa
 
           val changesMade = actualChangesToMake.map { case (member, accessLevel) =>
             member match {
-              case Left(userRef) => WorkspaceACLUpdate(userRef.userSubjectId.value, accessLevel)
-              case Right(groupRef) => WorkspaceACLUpdate(groupRef.groupName.value, accessLevel)
+              case Left(userRef) => WorkspaceACLUpdateResponse(userRef.userSubjectId.value, accessLevel)
+              case Right(groupRef) => WorkspaceACLUpdateResponse(groupRef.groupName.value, accessLevel)
             }
           }.toSeq
           RequestComplete(StatusCodes.OK, WorkspaceACLUpdateResponseList(changesMade, emailsNotFound))
@@ -501,7 +505,7 @@ class WorkspaceService(protected val userInfo: UserInfo, val dataSource: SlickDa
   def createWorkspaceInvite(workspaceName: WorkspaceName, userEmail: String, accessLevel: WorkspaceAccessLevels.WorkspaceAccessLevel, originSubjectId: String): Future[PerRequestMessage] = {
     dataSource.inTransaction { dataAccess =>
       withWorkspaceContextAndPermissions(workspaceName, WorkspaceAccessLevels.Owner, dataAccess) { workspaceContext =>
-        dataAccess.workspaceQuery.saveInvite(workspaceContext.workspaceId, userEmail, accessLevel, originSubjectId) map {
+        dataAccess.workspaceQuery.saveInvite(workspaceContext.workspaceId, userEmail, originSubjectId, accessLevel) map {
           case true => RequestComplete(StatusCodes.OK)
           case false => RequestComplete(StatusCodes.InternalServerError, s"Unable to generate invite for ${userEmail} on ${workspaceName} with access level ${accessLevel}")
         }
