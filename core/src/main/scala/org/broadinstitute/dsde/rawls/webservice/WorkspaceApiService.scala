@@ -70,10 +70,12 @@ trait WorkspaceApiService extends HttpService with PerRequestCreator with UserIn
     } ~
     path("workspaces" / Segment / Segment / "acl" ) { (workspaceNamespace, workspaceName) =>
       patch {
-        requireUserInfo() { userInfo =>
-          entity(as[Array[WorkspaceACLUpdate]]) { aclUpdate =>
-            requestContext => perRequest(requestContext, WorkspaceService.props(workspaceServiceConstructor, userInfo),
-                                      WorkspaceService.UpdateACL(WorkspaceName(workspaceNamespace, workspaceName), aclUpdate))
+        parameters('inviteUsersNotFound.?) { inviteUsersNotFound =>
+          requireUserInfo() { userInfo =>
+            entity(as[Array[WorkspaceACLUpdate]]) { aclUpdate =>
+              requestContext => perRequest(requestContext, WorkspaceService.props(workspaceServiceConstructor, userInfo),
+                WorkspaceService.UpdateACL(WorkspaceName(workspaceNamespace, workspaceName), aclUpdate, inviteUsersNotFound))
+            }
           }
         }
       }
@@ -97,26 +99,6 @@ trait WorkspaceApiService extends HttpService with PerRequestCreator with UserIn
         requireUserInfo() { userInfo =>
           requestContext => perRequest(requestContext, WorkspaceService.props(workspaceServiceConstructor, userInfo),
             WorkspaceService.UnlockWorkspace(WorkspaceName(workspaceNamespace, workspaceName)))
-        }
-      }
-    } ~
-    path("workspaces" / Segment / Segment / "invites" ) { (workspaceNamespace, workspaceName) =>
-      post {
-        requireUserInfo() { userInfo =>
-          entity(as[WorkspaceACLUpdate]) { invite =>
-            requestContext => perRequest(requestContext, WorkspaceService.props(workspaceServiceConstructor, userInfo),
-              WorkspaceService.CreateWorkspaceInvite(WorkspaceName(workspaceNamespace, workspaceName), invite.email, invite.accessLevel, userInfo.userSubjectId))
-          }
-        }
-      }
-    } ~
-    path("workspaces" / Segment / Segment / "invites" ) { (workspaceNamespace, workspaceName) =>
-      delete {
-        requireUserInfo() { userInfo =>
-          entity(as[WorkspaceACLUpdate]) { invite =>
-            requestContext => perRequest(requestContext, WorkspaceService.props(workspaceServiceConstructor, userInfo),
-              WorkspaceService.RemoveWorkspaceInvite(WorkspaceName(workspaceNamespace, workspaceName), invite.email))
-          }
         }
       }
     }

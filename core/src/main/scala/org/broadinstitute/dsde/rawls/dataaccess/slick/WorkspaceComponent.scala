@@ -209,9 +209,8 @@ trait WorkspaceComponent {
       findByNameQuery(workspaceName).map(_.isLocked).update(false)
     }
 
-    //use marsal method
-    def saveInvite(workspaceId: UUID, userEmail: String, originUser: String, accessLevel: WorkspaceAccessLevel): ReadWriteAction[Boolean] = {
-      pendingWorkspaceAccessQuery insertOrUpdate(marshalWorkspaceInvite(workspaceId, userEmail, originUser, accessLevel)) map { count => count == 1 }
+    def saveInvite(workspaceId: UUID, originUser: String, invite: WorkspaceACLUpdate): ReadWriteAction[WorkspaceACLUpdate] = {
+      pendingWorkspaceAccessQuery insertOrUpdate(marshalWorkspaceInvite(workspaceId, originUser, invite)) map { _ => invite }
     }
 
     def removeInvite(workspaceId: UUID, userEmail: String): ReadWriteAction[Boolean] = {
@@ -483,8 +482,8 @@ trait WorkspaceComponent {
       }
     }
 
-    private def marshalWorkspaceInvite(workspaceId: UUID, userEmail: String, originUser: String, accessLevel: WorkspaceAccessLevel) = {
-      PendingWorkspaceAccessRecord(workspaceId, userEmail, originUser, new Timestamp(DateTime.now.getMillis), accessLevel.toString)
+    private def marshalWorkspaceInvite(workspaceId: UUID, originUser: String, invite: WorkspaceACLUpdate) = {
+      PendingWorkspaceAccessRecord(workspaceId, invite.email, originUser, new Timestamp(DateTime.now.getMillis), invite.accessLevel.toString)
     }
 
     private def marshalNewWorkspace(workspace: Workspace) = {
