@@ -441,8 +441,8 @@ class WorkspaceService(protected val userInfo: UserInfo, val dataSource: SlickDa
               // toMap below will drop duplicate keys, keeping the last entry only
               // sort by access level to make sure higher access levels remain in the resulting map
 
-              val granted = emailsAndAccess.sortBy { case (_, accessLevel) => accessLevel }.map { x => x._1 -> AccessEntry(x._2, false)}
-              val pending = invites.sortBy { case (_, accessLevel) => accessLevel }.map { x => x._1 -> AccessEntry(x._2, true)}
+              val granted = emailsAndAccess.sortBy { case (_, accessLevel) => accessLevel }.map { case (email, accessLevel) => email -> AccessEntry(accessLevel, false)}
+              val pending = invites.sortBy { case (_, accessLevel) => accessLevel }.map {case (email, accessLevel) => email -> AccessEntry(accessLevel, true)}
 
               RequestComplete(
                 StatusCodes.OK,
@@ -519,28 +519,6 @@ class WorkspaceService(protected val userInfo: UserInfo, val dataSource: SlickDa
       }
     }
   }
-
-//  def createWorkspaceInvite(workspaceName: WorkspaceName, userEmail: String, accessLevel: WorkspaceAccessLevels.WorkspaceAccessLevel, originSubjectId: String): Future[PerRequestMessage] = {
-//    dataSource.inTransaction { dataAccess =>
-//      withWorkspaceContextAndPermissions(workspaceName, WorkspaceAccessLevels.Owner, dataAccess) { workspaceContext =>
-//        dataAccess.workspaceQuery.saveInvite(workspaceContext.workspaceId, userEmail, originSubjectId, accessLevel) map {
-//          case true => RequestComplete(StatusCodes.OK)
-//          case false => RequestComplete(StatusCodes.InternalServerError, s"Unable to generate invite for ${userEmail} to ${workspaceName} with access level ${accessLevel}")
-//        }
-//      }
-//    }
-//  }
-//
-//  def removeWorkspaceInvite(workspaceName: WorkspaceName, userEmail: String): Future[PerRequestMessage] = {
-//    dataSource.inTransaction { dataAccess =>
-//      withWorkspaceContextAndPermissions(workspaceName, WorkspaceAccessLevels.Owner, dataAccess) { workspaceContext =>
-//        dataAccess.workspaceQuery.removeInvite(workspaceContext.workspaceId, userEmail) map {
-//          case true => RequestComplete(StatusCodes.OK)
-//          case false => RequestComplete(StatusCodes.NotFound, s"A pending invitation for ${userEmail} was not found in the system")
-//        }
-//      }
-//    }
-//  }
 
   /**
    * Determine what the access groups for a workspace should look like after the requested updates are applied
