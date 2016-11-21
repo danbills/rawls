@@ -306,8 +306,8 @@ class WorkspaceService(protected val userInfo: UserInfo, val dataSource: SlickDa
       // Abort running workflows
       aborts = Future.traverse(workflowsToAbort) { wf => executionServiceCluster.abort(wf, userInfo) }
 
-      // Send message to delete bucket to BucketDeletionMonitor
-      _ <- Future.successful(bucketDeletionMonitor ! BucketDeletionMonitor.DeleteBucket(workspaceContext.workspace.bucketName))
+      // Delete Google bucket
+      _ <- gcsDAO.deleteBucket(workspaceContext.workspace.bucketName)
 
       // Remove Google Groups
       _ <- Future.traverse(groupsToRemove) {
@@ -319,6 +319,20 @@ class WorkspaceService(protected val userInfo: UserInfo, val dataSource: SlickDa
         case t: Throwable => logger.info(s"failure aborting workflows while deleting workspace ${workspaceName}", t)
       }
       RequestComplete(StatusCodes.Accepted, s"Your Google bucket ${bucketName} will be deleted within 24h.")
+    }
+  }
+
+  def deleteBucket(bucketName: String, dataAccess: DataAccess) = {
+    //TODO: add a pending bucket database row
+    tryDeleteBucket(bucketName)
+  }
+
+  def tryDeleteBucket(bucketName: String) = {
+    gcsDAO.deleteBucket() match {
+      case hooray:
+        //TODO: remove pending bucket delete
+      case ohno:
+        //TODO: schedule
     }
   }
 

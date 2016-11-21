@@ -239,12 +239,11 @@ class HttpGoogleServicesDAO(
   private def newObjectAccessControl(entity: String, accessLevel: String) =
     new ObjectAccessControl().setEntity(entity).setRole(accessLevel)
 
-  override def deleteBucket(bucketName: String, monitorRef: ActorRef): Future[Unit] = {
+  override def deleteBucket(bucketName: String): Future[Unit] = {
     val buckets = getStorage(getBucketServiceAccountCredential).buckets
     val deleter = buckets.delete(bucketName)
     retryWithRecoverWhen500orGoogleError(() => {
       executeGoogleRequest(deleter)
-      monitorRef ! BucketDeleted(bucketName)
     }) {
       //Google returns 409 Conflict if the bucket isn't empty.
       case t: HttpResponseException if t.getStatusCode == 409 =>
@@ -259,9 +258,12 @@ class HttpGoogleServicesDAO(
         val patcher = buckets.patch(bucketName, new Bucket().setLifecycle(lifecycle))
         retryWhen500orGoogleError(() => { executeGoogleRequest(patcher) })
 
+        //TODO: change this scheduleOnce to a non-actor timer
+
         system.scheduler.scheduleOnce(deletedBucketCheckSeconds seconds, monitorRef, DeleteBucket(bucketName))
       // Bucket is already deleted
       case t: HttpResponseException if t.getStatusCode == 404 =>
+        //TODO: remove the pending bucket database row
         monitorRef ! BucketDeleted(bucketName)
       case _ =>
       //TODO: I am entirely unsure what other cases might want to be handled here.

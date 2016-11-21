@@ -41,7 +41,7 @@ abstract class GoogleServicesDAO(groupsPrefix: String) extends ErrorReportable {
     * @param monitorRef a [[org.broadinstitute.dsde.rawls.monitor.BucketDeletionMonitor]] to handle deferred actions
     * @return a [[scala.concurrent.Future]] for whatever return value is appropriate for the implementation
     */
-  def deleteBucket(bucketName: String, monitorRef: ActorRef): Future[Any]
+  def deleteBucket(bucketName: String): Future[Any]
 
   def getCromwellAuthBucketName(billingProject: RawlsBillingProjectName) = s"cromwell-auth-${billingProject.value}"
 
