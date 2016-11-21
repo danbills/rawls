@@ -70,11 +70,11 @@ trait WorkspaceApiService extends HttpService with PerRequestCreator with UserIn
     } ~
     path("workspaces" / Segment / Segment / "acl" ) { (workspaceNamespace, workspaceName) =>
       patch {
-        parameters('inviteUsersNotFound.?) { inviteUsersNotFound =>
+        parameter('inviteUsersNotFound.?) { inviteUsersNotFound =>
           requireUserInfo() { userInfo =>
             entity(as[Array[WorkspaceACLUpdate]]) { aclUpdate =>
               requestContext => perRequest(requestContext, WorkspaceService.props(workspaceServiceConstructor, userInfo),
-                WorkspaceService.UpdateACL(WorkspaceName(workspaceNamespace, workspaceName), aclUpdate, inviteUsersNotFound))
+                WorkspaceService.UpdateACL(WorkspaceName(workspaceNamespace, workspaceName), aclUpdate, inviteUsersNotFound.getOrElse("false").toBoolean))
             }
           }
         }

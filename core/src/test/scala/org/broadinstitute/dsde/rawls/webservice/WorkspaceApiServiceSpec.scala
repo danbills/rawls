@@ -1556,7 +1556,7 @@ class WorkspaceApiServiceSpec extends ApiServiceSpec {
       sealRoute(services.workspaceRoutes) ~>
       check {
         assertResult(StatusCodes.OK, response.entity.asString ) { status }
-        responseAs[WorkspaceACL].granted should contain (testData.userWriter.userEmail.value -> WorkspaceAccessLevels.Read)
+        responseAs[WorkspaceACL].acl should contain (testData.userWriter.userEmail.value -> AccessEntry(WorkspaceAccessLevels.Read, false))
       }
   }
 
@@ -1572,7 +1572,7 @@ class WorkspaceApiServiceSpec extends ApiServiceSpec {
       sealRoute(services.workspaceRoutes) ~>
       check {
         assertResult(StatusCodes.OK, response.entity.asString ) { status }
-        responseAs[WorkspaceACL].granted should contain (testData.userWriter.userEmail.value -> WorkspaceAccessLevels.Read)
+        responseAs[WorkspaceACL].acl should contain (testData.userWriter.userEmail.value -> AccessEntry(WorkspaceAccessLevels.Read, false))
       }
   }
 
@@ -1614,7 +1614,7 @@ class WorkspaceApiServiceSpec extends ApiServiceSpec {
       sealRoute(services.workspaceRoutes) ~>
       check {
         assertResult(StatusCodes.OK, response.entity.asString ) { status }
-        responseAs[WorkspaceACL].granted should contain (testData.userProjectOwner.userEmail.value -> WorkspaceAccessLevels.ProjectOwner)
+        responseAs[WorkspaceACL].acl should contain (testData.userProjectOwner.userEmail.value -> AccessEntry(WorkspaceAccessLevels.ProjectOwner, false))
 
       }
   }

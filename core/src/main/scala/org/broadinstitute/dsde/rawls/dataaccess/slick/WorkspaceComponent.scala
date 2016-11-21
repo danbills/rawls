@@ -209,7 +209,10 @@ trait WorkspaceComponent {
       findByNameQuery(workspaceName).map(_.isLocked).update(false)
     }
 
+    //private def findInvitesQuery(workspaceId: UUID, email: )
+
     def saveInvite(workspaceId: UUID, originUser: String, invite: WorkspaceACLUpdate): ReadWriteAction[WorkspaceACLUpdate] = {
+      //uniqueResult()
       pendingWorkspaceAccessQuery insertOrUpdate(marshalWorkspaceInvite(workspaceId, originUser, invite)) map { _ => invite }
     }
 

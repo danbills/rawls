@@ -54,7 +54,7 @@ object WorkspaceService {
   case class AdminListWorkspacesWithAttribute(attributeName: AttributeName, attributeValue: AttributeValue) extends WorkspaceServiceMessage
   case class CloneWorkspace(sourceWorkspace: WorkspaceName, destWorkspace: WorkspaceRequest) extends WorkspaceServiceMessage
   case class GetACL(workspaceName: WorkspaceName) extends WorkspaceServiceMessage
-  case class UpdateACL(workspaceName: WorkspaceName, aclUpdates: Seq[WorkspaceACLUpdate], inviteUsersNotFound: Option[String]) extends WorkspaceServiceMessage
+  case class UpdateACL(workspaceName: WorkspaceName, aclUpdates: Seq[WorkspaceACLUpdate], inviteUsersNotFound: Boolean) extends WorkspaceServiceMessage
   case class LockWorkspace(workspaceName: WorkspaceName) extends WorkspaceServiceMessage
   case class UnlockWorkspace(workspaceName: WorkspaceName) extends WorkspaceServiceMessage
   case class CheckBucketReadAccess(workspaceName: WorkspaceName) extends WorkspaceServiceMessage
@@ -442,12 +442,12 @@ class WorkspaceService(protected val userInfo: UserInfo, val dataSource: SlickDa
               // sort by access level to make sure higher access levels remain in the resulting map
 
               val granted = emailsAndAccess.sortBy { case (_, accessLevel) => accessLevel }.map { case (email, accessLevel) => email -> AccessEntry(accessLevel, false)}
-              val pending = invites.sortBy { case (_, accessLevel) => accessLevel }.map {case (email, accessLevel) => email -> AccessEntry(accessLevel, true)}
+              val pending = invites.sortBy { case (_, accessLevel) => accessLevel }.map { case (email, accessLevel) => email -> AccessEntry(accessLevel, true)}
 
-              RequestComplete(
-                StatusCodes.OK,
-                WorkspaceACL((granted ++ pending).toMap)
-              )
+              println(granted)
+              println(pending)
+
+              RequestComplete(StatusCodes.OK, WorkspaceACL((granted ++ pending).toMap))
             }
           }
         }
@@ -461,7 +461,7 @@ class WorkspaceService(protected val userInfo: UserInfo, val dataSource: SlickDa
    *                   Seq, use NoAccess to remove an entry, all other preexisting accesses remain unchanged
    * @return
    */
-  def updateACL(workspaceName: WorkspaceName, aclUpdates: Seq[WorkspaceACLUpdate], inviteUsersNotFound: Option[String]): Future[PerRequestMessage] = {
+  def updateACL(workspaceName: WorkspaceName, aclUpdates: Seq[WorkspaceACLUpdate], inviteUsersNotFound: Boolean): Future[PerRequestMessage] = {
 
     import org.broadinstitute.dsde.rawls.model.WorkspaceACLJsonSupport._
 
@@ -490,7 +490,7 @@ class WorkspaceService(protected val userInfo: UserInfo, val dataSource: SlickDa
 
           val (toDelete, toSave) = emailsNotFound.partition(_.accessLevel.equals(WorkspaceAccessLevels.NoAccess))
 
-          if(inviteUsersNotFound.getOrElse("false").toBoolean) {
+          if(inviteUsersNotFound) {
             dataSource.inTransaction { dataAccess =>
               withWorkspaceContext(workspaceName, dataAccess) { workspaceContext =>
                 DBIO.sequence(toSave.map { invite =>
