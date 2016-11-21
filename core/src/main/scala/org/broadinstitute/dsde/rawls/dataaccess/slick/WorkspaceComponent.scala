@@ -209,8 +209,6 @@ trait WorkspaceComponent {
       findByNameQuery(workspaceName).map(_.isLocked).update(false)
     }
 
-    //private def findInvitesQuery(workspaceId: UUID, email: )
-
     def saveInvite(workspaceId: UUID, originUser: String, invite: WorkspaceACLUpdate): ReadWriteAction[WorkspaceACLUpdate] = {
       //uniqueResult()
       pendingWorkspaceAccessQuery insertOrUpdate(marshalWorkspaceInvite(workspaceId, originUser, invite)) map { _ => invite }
@@ -227,7 +225,7 @@ trait WorkspaceComponent {
     }
 
     def deleteWorkspaceInvites(workspaceId: UUID) = {
-      pendingWorkspaceAccessQuery.filter(_.workspaceId === workspaceId).delete
+      findWorkspaceInvitesQuery(workspaceId).delete
     }
     
     def listEmailsAndAccessLevel(workspaceContext: SlickWorkspaceContext): ReadAction[Seq[(String, WorkspaceAccessLevel)]] = {
@@ -383,6 +381,10 @@ trait WorkspaceComponent {
 
     private def findByNameQuery(workspaceName: WorkspaceName): WorkspaceQueryType = {
       filter(rec => rec.namespace === workspaceName.namespace && rec.name === workspaceName.name)
+    }
+
+    private def findWorkspaceInvitesQuery(workspaceId: UUID) = {
+      pendingWorkspaceAccessQuery.filter(_.workspaceId === workspaceId)
     }
 
     def findByIdQuery(workspaceId: UUID): WorkspaceQueryType = {
