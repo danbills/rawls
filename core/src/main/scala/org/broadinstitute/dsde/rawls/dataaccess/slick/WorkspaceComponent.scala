@@ -210,7 +210,6 @@ trait WorkspaceComponent {
     }
 
     def saveInvite(workspaceId: UUID, originUser: String, invite: WorkspaceACLUpdate): ReadWriteAction[WorkspaceACLUpdate] = {
-      //uniqueResult()
       pendingWorkspaceAccessQuery insertOrUpdate(marshalWorkspaceInvite(workspaceId, originUser, invite)) map { _ => invite }
     }
 
