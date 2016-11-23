@@ -514,7 +514,6 @@ class WorkspaceService(protected val userInfo: UserInfo, val dataSource: SlickDa
   private def saveInvites(invites: Seq[WorkspaceACLUpdate], workspaceName: WorkspaceName) = {
     dataSource.inTransaction { dataAccess =>
       withWorkspaceContext(workspaceName, dataAccess) { workspaceContext =>
-        DBIO.successful(Seq.empty) map { _ => Seq.empty }
         dataAccess.workspaceQuery.getInvites(workspaceContext.workspaceId) flatMap { existingInvites =>
           val dedupedInvites = invites.filterNot(update => existingInvites.contains((update.email, update.accessLevel)))
           DBIO.sequence(dedupedInvites.map(invite => dataAccess.workspaceQuery.saveInvite(workspaceContext.workspaceId, userInfo.userSubjectId, invite)))
