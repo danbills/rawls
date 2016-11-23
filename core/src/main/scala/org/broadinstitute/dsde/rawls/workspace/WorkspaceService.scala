@@ -505,7 +505,7 @@ class WorkspaceService(protected val userInfo: UserInfo, val dataSource: SlickDa
       withWorkspaceContext(workspaceName, dataAccess) { workspaceContext =>
         dataAccess.workspaceQuery.getInvites(workspaceContext.workspaceId) flatMap { existingInvites =>
           val removals = invites.filter(_.accessLevel.equals(WorkspaceAccessLevels.NoAccess))
-          val dedupedRemovals = removals.filterNot(update => existingInvites.contains((update.email, _)))
+          val dedupedRemovals = removals.filterNot(update => existingInvites.map(_._1).contains(update.email))
           DBIO.sequence(dedupedRemovals.map(removal => dataAccess.workspaceQuery.removeInvite(workspaceContext.workspaceId, removal.email))) map { _ =>
             dedupedRemovals
           }
