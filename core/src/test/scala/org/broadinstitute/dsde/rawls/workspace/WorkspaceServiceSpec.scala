@@ -460,8 +460,6 @@ class WorkspaceServiceSpec extends FlatSpec with ScalatestRouteTest with Matcher
   it should "update an existing workspace invitation to change access levels" in withTestDataServices { services =>
     val vComplete0 = Await.result(services.workspaceService.updateACL(testData.workspace.toWorkspaceName, Seq(WorkspaceACLUpdate("obama@whitehouse.gov", WorkspaceAccessLevels.Owner)), true), Duration.Inf).asInstanceOf[RequestComplete[(StatusCode, WorkspaceACLUpdateResponseList)]]
 
-    println(vComplete0.response._2)
-
     val vComplete1 = Await.result(services.workspaceService.getACL(testData.workspace.toWorkspaceName), Duration.Inf)
       .asInstanceOf[RequestComplete[(StatusCode, WorkspaceACL)]]
 
