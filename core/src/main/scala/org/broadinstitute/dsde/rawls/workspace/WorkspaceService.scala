@@ -469,54 +469,55 @@ class WorkspaceService(protected val userInfo: UserInfo, val dataSource: SlickDa
       }
     }
 
-    def determineInvites(emailsNotFound: Seq[WorkspaceACLUpdate], inviteUsersNotFound: Boolean): Future[Seq[WorkspaceACLUpdate]] = {
-      dataSource.inTransaction { dataAccess =>
-        withWorkspaceContext(workspaceName, dataAccess) { workspaceContext =>
-          dataAccess.workspaceQuery.getInvites(workspaceContext.workspaceId) flatMap { invites =>
-            val (toDelete, toSave) = emailsNotFound.partition(_.accessLevel.equals(WorkspaceAccessLevels.NoAccess))
-            val dedupedInvites = toSave.filterNot(update => invites.contains((update.email, update.accessLevel)))
-
-            if(inviteUsersNotFound) {
-              DBIO.sequence(dedupedInvites.map { invite =>
-                dataAccess.workspaceQuery.saveInvite(workspaceContext.workspaceId, userInfo.userSubjectId, WorkspaceACLUpdate(invite.email, invite.accessLevel))
-              }) flatMap { _ =>
-                DBIO.sequence(toDelete.map { invite =>
-                  dataAccess.workspaceQuery.removeInvite(workspaceContext.workspaceId, invite.email)
-                }) map { _ => (dedupedInvites ++ toDelete) }
-              }
-            } else DBIO.successful(dedupedInvites ++ toDelete) //else only return invites that don't already exist
-          }
-        }
-      }
-    }
-
-    def getUsersUpdatedResponse(actualChangesToMake: Map[Either[RawlsUserRef, RawlsGroupRef], WorkspaceAccessLevel]): Seq[WorkspaceACLUpdateResponse] = {
-      actualChangesToMake.map { case (member, accessLevel) =>
-        member match {
-          case Left(userRef) => WorkspaceACLUpdateResponse(userRef.userSubjectId.value, accessLevel)
-          case Right(groupRef) => WorkspaceACLUpdateResponse(groupRef.groupName.value, accessLevel)
-        }
+    def getUsersUpdatedResponse(actualChangesToMake: Map[Either[RawlsUserRef, RawlsGroupRef], WorkspaceAccessLevel], invitesUpdated: Seq[WorkspaceACLUpdate], emailsNotFound: Seq[WorkspaceACLUpdate]): WorkspaceACLUpdateResponseList = {
+      val usersUpdated = actualChangesToMake.map {
+        case (Left(userRef), accessLevel) => WorkspaceACLUpdateResponse(userRef.userSubjectId.value, accessLevel)
+        case (Right(groupRef), accessLevel) => WorkspaceACLUpdateResponse(groupRef.groupName.value, accessLevel)
       }.toSeq
+
+      WorkspaceACLUpdateResponseList(usersUpdated, invitesUpdated, (emailsNotFound diff invitesUpdated))
     }
 
     val userServiceRef = context.actorOf(UserService.props(userServiceConstructor, userInfo))
     for {
       (overwriteGroupMessages, emailsNotFound, actualChangesToMake) <- overwriteGroupMessagesFuture
       overwriteGroupResults <- Future.traverse(overwriteGroupMessages) { message => (userServiceRef ? message).asInstanceOf[Future[PerRequestMessage]] }
-      emailInvites <- determineInvites(emailsNotFound, inviteUsersNotFound)
+      deletedInvites <- deleteInvites(emailsNotFound, workspaceName)
+      savedInvites <- if(inviteUsersNotFound) saveInvites((emailsNotFound diff deletedInvites), workspaceName) else Future.successful(Seq.empty)
     } yield {
       overwriteGroupResults.map {
         case RequestComplete(StatusCodes.NoContent) =>
-          val response = if(inviteUsersNotFound) {
-            WorkspaceACLUpdateResponseList(getUsersUpdatedResponse(actualChangesToMake), emailInvites, Seq.empty)
-          } else WorkspaceACLUpdateResponseList(getUsersUpdatedResponse(actualChangesToMake), Seq.empty, emailInvites)
-          RequestComplete(StatusCodes.OK, response)
+          RequestComplete(StatusCodes.OK, getUsersUpdatedResponse(actualChangesToMake, (deletedInvites ++ savedInvites), emailsNotFound))
         case otherwise => otherwise
       }.reduce { (prior, next) =>
         // this reduce will propagate the first non-NoContent (i.e. error) response
         prior match {
           case RequestComplete(StatusCodes.NoContent) => next
           case otherwise => prior
+        }
+      }
+    }
+  }
+
+
+  private def deleteInvites(invites: Seq[WorkspaceACLUpdate], workspaceName: WorkspaceName) = {
+    dataSource.inTransaction { dataAccess =>
+      withWorkspaceContext(workspaceName, dataAccess) { workspaceContext =>
+        val removals = invites.filter(_.accessLevel.equals(WorkspaceAccessLevels.NoAccess))
+        DBIO.sequence(removals.map(removal => dataAccess.workspaceQuery.removeInvite(workspaceContext.workspaceId, removal.email))) map { _ =>
+          removals
+        }
+      }
+    }
+  }
+
+  private def saveInvites(invites: Seq[WorkspaceACLUpdate], workspaceName: WorkspaceName) = {
+    dataSource.inTransaction { dataAccess =>
+      withWorkspaceContext(workspaceName, dataAccess) { workspaceContext =>
+        DBIO.successful(Seq.empty) map { _ => Seq.empty }
+        dataAccess.workspaceQuery.getInvites(workspaceContext.workspaceId) flatMap { existingInvites =>
+          val dedupedInvites = invites.filterNot(update => existingInvites.contains((update.email, update.accessLevel)))
+          DBIO.sequence(dedupedInvites.map(invite => dataAccess.workspaceQuery.saveInvite(workspaceContext.workspaceId, userInfo.userSubjectId, invite)))
         }
       }
     }
