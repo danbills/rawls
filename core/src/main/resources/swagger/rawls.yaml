@@ -3004,6 +3004,12 @@ paths:
           name: workspaceName
           required: true
           type: string
+        - in: query
+          description: true to invite unregistered users, false to ignore
+          name: inviteUsersNotFound
+          required: true
+          default: false
+          type: boolean
         - in: body
           description: Series of ACL updates for workspace
           name: aclUpdates
@@ -3017,6 +3023,7 @@ paths:
             - openid
             - email
             - profile
+
   '/api/workspaces':
     post:
       responses:
