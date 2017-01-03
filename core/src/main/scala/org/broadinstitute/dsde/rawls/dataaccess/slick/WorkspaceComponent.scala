@@ -231,6 +231,10 @@ trait WorkspaceComponent {
     def deleteWorkspaceInvites(workspaceId: UUID) = {
       findWorkspaceInvitesQuery(workspaceId).delete
     }
+
+    def deleteWorkspaceInvitesForUser(userEmail: RawlsUserEmail) = {
+      (pendingWorkspaceAccessQuery.filter(_.userEmail === userEmail.value)).delete
+    }
     
     def listEmailsAndAccessLevel(workspaceContext: SlickWorkspaceContext): ReadAction[Seq[(String, WorkspaceAccessLevel)]] = {
       val accessAndUserEmail = (for {
@@ -403,6 +407,12 @@ trait WorkspaceComponent {
       filter(_.id.inSetBind(workspaceIds))
     }
 
+    def findWorkspaceInvitesForUser(userEmail: RawlsUserEmail): ReadAction[Seq[(WorkspaceName, WorkspaceAccessLevel)]] = {
+      (pendingWorkspaceAccessQuery.filter(_.userEmail === userEmail.value) join workspaceQuery on (_.workspaceId === _.id)).map(rec => (rec._2.namespace, rec._2.name, rec._1.accessLevel)).result.map { x =>
+        x.map(y => (WorkspaceName(y._1, y._2), WorkspaceAccessLevels.withName(y._3)))
+      }
+    }
+
     def listPermissionPairsForGroups(groups: Set[RawlsGroupRef]): ReadAction[Seq[WorkspacePermissionsPair]] = {
       val query = for {
         accessLevel <- workspaceAccessQuery if (accessLevel.groupName.inSetBind(groups.map(_.groupName.value)) && accessLevel.isRealmAcl === false)
@@ -497,6 +507,15 @@ trait WorkspaceComponent {
           unmarshalWorkspace(workspaceRec, attributesByWsId.getOrElse(workspaceRec.id, Map.empty), workspaceGroups.accessGroups, workspaceGroups.realmAcls)
         }
       }
+    }
+
+    def loadAccessGroup(workspaceName: WorkspaceName, accessLevel: WorkspaceAccessLevel) = {
+      val query = for {
+        workspace <- workspaceQuery if (workspace.namespace === workspaceName.namespace && workspace.name === workspaceName.name)
+        accessGroup <- workspaceAccessQuery if (accessGroup.workspaceId === workspace.id)
+      } yield accessGroup.groupName
+
+      query.result.map(name => RawlsGroupRef(RawlsGroupName(name.head))) //todo: un-head this?
     }
 
     private def marshalWorkspaceInvite(workspaceId: UUID, originUser: String, invite: WorkspaceACLUpdate) = {
