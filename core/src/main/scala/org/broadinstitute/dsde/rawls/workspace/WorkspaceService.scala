@@ -13,6 +13,7 @@ import org.broadinstitute.dsde.rawls.jobexec.MethodConfigResolver
 import org.broadinstitute.dsde.rawls.jobexec.SubmissionSupervisor.SubmissionStarted
 import org.broadinstitute.dsde.rawls.model.ProjectRoles.ProjectRole
 import org.broadinstitute.dsde.rawls.model.WorkspaceAccessLevels.{ProjectOwner, WorkspaceAccessLevel}
+import org.broadinstitute.dsde.rawls.model.WorkspacePermission.{WorkspacePermission, WorkspaceUserPermission}
 import org.broadinstitute.dsde.rawls.model._
 import org.broadinstitute.dsde.rawls.expressions._
 import org.broadinstitute.dsde.rawls.user.UserService
@@ -61,6 +62,7 @@ object WorkspaceService {
   case class CheckBucketReadAccess(workspaceName: WorkspaceName) extends WorkspaceServiceMessage
   case class GetWorkspaceStatus(workspaceName: WorkspaceName, userSubjectId: Option[String]) extends WorkspaceServiceMessage
   case class GetBucketUsage(workspaceName: WorkspaceName) extends WorkspaceServiceMessage
+  //case class GetUserWorkspacePermissions(workspaceName: WorkspaceName) extends WorkspaceServiceMessage
 
   case class CreateEntity(workspaceName: WorkspaceName, entity: Entity) extends WorkspaceServiceMessage
   case class GetEntity(workspaceName: WorkspaceName, entityType: String, entityName: String) extends WorkspaceServiceMessage
@@ -135,6 +137,7 @@ class WorkspaceService(protected val userInfo: UserInfo, val dataSource: SlickDa
     case CheckBucketReadAccess(workspaceName: WorkspaceName) => pipe(checkBucketReadAccess(workspaceName)) to sender
     case GetWorkspaceStatus(workspaceName, userSubjectId) => pipe(getWorkspaceStatus(workspaceName, userSubjectId)) to sender
     case GetBucketUsage(workspaceName) => pipe(getBucketUsage(workspaceName)) to sender
+    //case GetUserWorkspacePermissions(workspaceName) => pipe(getUserWorkspacePermissions(workspaceName)) to sender
 
     case CreateEntity(workspaceName, entity) => pipe(createEntity(workspaceName, entity)) to sender
     case GetEntity(workspaceName, entityType, entityName) => pipe(getEntity(workspaceName, entityType, entityName)) to sender
@@ -456,9 +459,17 @@ class WorkspaceService(protected val userInfo: UserInfo, val dataSource: SlickDa
 
     val overwriteGroupMessagesFuture = dataSource.inTransaction { dataAccess =>
       withWorkspaceContext(workspaceName, dataAccess) { workspaceContext =>
-        requireAccessIgnoreLock(workspaceContext.workspace, WorkspaceAccessLevels.Owner, dataAccess) {
-          determineCompleteNewAcls(aclUpdates, dataAccess, workspaceContext)
+        getMaximumAccessLevel(RawlsUser(userInfo), workspaceContext, dataAccess) flatMap { accessLevel =>
+          if(accessLevel >= WorkspaceAccessLevels.Owner) determineCompleteNewAcls(aclUpdates, dataAccess, workspaceContext)
+          else getUserWorkspacePermissions(workspaceContext.workspace.toWorkspaceName) flatMap { userPermissions =>
+            if(userPermissions.contains(WorkspacePermission.Share)) {
+              determineCompleteNewAcls(aclUpdates.filter(x => x.accessLevel <= accessLevel), dataAccess, workspaceContext)
+            }
+            else DBIO.failed(new RawlsExceptionWithErrorReport(errorReport = ErrorReport(StatusCodes.Forbidden, accessDeniedMessage(workspaceContext.workspace.toWorkspaceName))))
+          }
         }
+        //requireAccessOrPermission(workspaceContext.workspace, WorkspaceAccessLevels.Owner, WorkspacePermission.Share, dataAccess) { //also ignore lock
+        //}
       }
     }
 
@@ -1391,6 +1402,19 @@ class WorkspaceService(protected val userInfo: UserInfo, val dataSource: SlickDa
     }
   }
 
+  def getUserWorkspacePermissions(workspaceName: WorkspaceName): ReadAction[Seq[WorkspacePermission]] = {
+    DBIO.from(dataSource.inTransaction { dataAccess =>
+      withWorkspaceContext(workspaceName, dataAccess) { workspaceContext =>
+        val x = dataAccess.rawlsUserPermissionsQuery.getUserWorkspacePermissions(workspaceContext.workspaceId, RawlsUserSubjectId(userInfo.userSubjectId))
+        x.map { y =>
+          if(y.contains(WorkspacePermission.Share)) println("You can share!")
+          else println("you can't share :(")
+          y
+        }
+      }
+    })
+  }
+
   // this function is a bit naughty because it waits for database results
   // this is acceptable because it is a seldom used admin functions, not part of the mainstream
   // refactoring it to do the propper database action chaining is too much work at this time
@@ -1679,6 +1703,13 @@ class WorkspaceService(protected val userInfo: UserInfo, val dataSource: SlickDa
     }
   }
 
+  private def requirePermission[T](workspaceId: UUID, userRef: RawlsUserRef, dataAccess: DataAccess)(codeBlock: => ReadWriteAction[T]): ReadWriteAction[T] = {
+    dataAccess.rawlsUserPermissionsQuery.getUserWorkspacePermissions(workspaceId, userRef.userSubjectId) flatMap { x =>
+      println(x)
+      codeBlock
+    }
+  }
+
   private def requireAccess[T](workspace: Workspace, requiredLevel: WorkspaceAccessLevel, dataAccess: DataAccess)(codeBlock: => ReadWriteAction[T]): ReadWriteAction[T] = {
     getMaximumAccessLevel(RawlsUser(userInfo), SlickWorkspaceContext(workspace), dataAccess) flatMap { userLevel =>
       if (userLevel >= requiredLevel) {
@@ -1693,6 +1724,20 @@ class WorkspaceService(protected val userInfo: UserInfo, val dataSource: SlickDa
 
   private def requireAccessIgnoreLock[T](workspace: Workspace, requiredLevel: WorkspaceAccessLevel, dataAccess: DataAccess)(op: => ReadWriteAction[T]): ReadWriteAction[T] = {
     requireAccess(workspace.copy(isLocked = false), requiredLevel, dataAccess)(op)
+  }
+
+  private def requireAccessOrPermission[T](workspace: Workspace, requiredLevel: WorkspaceAccessLevel, requiredPermission: WorkspacePermission, dataAccess: DataAccess)(codeBlock: => ReadWriteAction[T]): ReadWriteAction[T] = {
+    getMaximumAccessLevel(RawlsUser(userInfo), SlickWorkspaceContext(workspace), dataAccess) flatMap { userLevel =>
+      getUserWorkspacePermissions(workspace.toWorkspaceName) flatMap { userPermissions =>
+        if (userLevel >= requiredLevel || userPermissions.contains(requiredPermission)) {
+          if ((requiredLevel > WorkspaceAccessLevels.Read) && workspace.isLocked)
+            DBIO.failed(new RawlsExceptionWithErrorReport(errorReport = ErrorReport(StatusCodes.Forbidden, s"The workspace ${workspace.toWorkspaceName} is locked.")))
+          else codeBlock
+        }
+        else if (userLevel >= WorkspaceAccessLevels.Read) DBIO.failed(new RawlsExceptionWithErrorReport(errorReport = ErrorReport(StatusCodes.Forbidden, accessDeniedMessage(workspace.toWorkspaceName))))
+        else DBIO.failed(new RawlsExceptionWithErrorReport(errorReport = ErrorReport(StatusCodes.NotFound, noSuchWorkspaceMessage(workspace.toWorkspaceName))))
+      }
+    }
   }
 
   private def withEntity(workspaceContext: SlickWorkspaceContext, entityType: String, entityName: String, dataAccess: DataAccess)(op: (Entity) => ReadWriteAction[PerRequestMessage]): ReadWriteAction[PerRequestMessage] = {

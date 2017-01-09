@@ -100,6 +100,14 @@ trait WorkspaceApiService extends HttpService with PerRequestCreator with UserIn
         }
       }
     } ~
+//    path("workspaces" / Segment / Segment / "permissions" ) { (workspaceNamespace, workspaceName) =>
+//      get {
+//        requireUserInfo() { userInfo =>
+//          requestContext => perRequest(requestContext, WorkspaceService.props(workspaceServiceConstructor, userInfo),
+//            WorkspaceService.GetUserWorkspacePermissions(WorkspaceName(workspaceNamespace, workspaceName)))
+//        }
+//      }
+//    } ~
     path("workspaces" / Segment / Segment / "bucketUsage" ) { (workspaceNamespace, workspaceName) =>
       get {
         requestContext => perRequest(requestContext, WorkspaceService.props(workspaceServiceConstructor, userInfo),

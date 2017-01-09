@@ -1,5 +1,7 @@
 package org.broadinstitute.dsde.rawls.model
 
+import java.util.UUID
+
 import org.broadinstitute.dsde.rawls.RawlsException
 import org.broadinstitute.dsde.rawls.model.WorkspaceAccessLevels.WorkspaceAccessLevel
 import spray.json._
@@ -57,6 +59,39 @@ object WorkspaceAccessLevels {
       a
     }
   }
+}
+
+object WorkspacePermission extends JsonSupport {
+  sealed trait WorkspacePermission
+
+  def toString(v: WorkspacePermission): String = {
+    v match {
+      case Share => "SHARE"
+      case Discover => "DISCOVER"
+      case _ => throw new RawlsException(s"invalid WorkspacePermission [${v}]")
+    }
+  }
+
+  def withName(s: String): WorkspacePermission = {
+    s match {
+      case "SHARE" => Share
+      case "DISCOVER" => Discover
+      case _ => throw new RawlsException(s"invalid WorkspacePermission [${s}]")
+    }
+  }
+
+  case object Share extends WorkspacePermission
+  case object Discover extends WorkspacePermission
+  case class WorkspaceUserPermission(workspaceId: String, subjectId: String, permission: WorkspacePermission)
+  case class WorkspaceUserPermissions(workspaceId: String, subjectId: String, permissions: Seq[WorkspacePermission])
+
+  implicit object WorkspacePermissionFormat extends RootJsonFormat[WorkspacePermission] {
+    def write(permission: WorkspacePermission) = JsString(WorkspacePermission.toString(permission))
+    def read(json: JsValue) = ???
+  }
+
+  implicit val WorkspaceUserPermissionFormat = jsonFormat3(WorkspaceUserPermission)
+  implicit val WorkspaceUserPermissionsFormat = jsonFormat3(WorkspaceUserPermissions)
 }
 
 object WorkspaceACLJsonSupport extends JsonSupport {

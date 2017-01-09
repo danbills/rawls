@@ -8,6 +8,7 @@ trait DataAccess
   with RawlsUserComponent
   with RawlsGroupComponent
   with RawlsBillingProjectComponent
+  with RawlsUserPermissionsComponent
   with WorkspaceComponent
   with EntityComponent
   with AttributeComponent
