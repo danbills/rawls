@@ -166,7 +166,6 @@ class UserService(protected val userInfo: UserInfo, val dataSource: SlickDataSou
     }
   }
 
-
   def createUser(): Future[PerRequestMessage] = {
     val user = RawlsUser(userInfo)
 
