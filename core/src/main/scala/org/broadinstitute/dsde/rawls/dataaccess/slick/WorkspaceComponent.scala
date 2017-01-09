@@ -512,7 +512,7 @@ trait WorkspaceComponent {
     def loadAccessGroup(workspaceName: WorkspaceName, accessLevel: WorkspaceAccessLevel) = {
       val query = for {
         workspace <- workspaceQuery if (workspace.namespace === workspaceName.namespace && workspace.name === workspaceName.name)
-        accessGroup <- workspaceAccessQuery if (accessGroup.workspaceId === workspace.id)
+        accessGroup <- workspaceAccessQuery if (accessGroup.workspaceId === workspace.id && accessGroup.accessLevel === accessLevel.toString)
       } yield accessGroup.groupName
 
       query.result.map(name => RawlsGroupRef(RawlsGroupName(name.head))) //todo: un-head this?
