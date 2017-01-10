@@ -4281,6 +4281,9 @@ definitions:
       accessLevel:
         type: string
         description: The access level to grant to this user or group (OWNER, READER, WRITER, NO ACCESS)
+      canShare:
+        type: boolean
+        description: Owners can give collaborators the ability to share this workspace
 
   Workspace:
     description: ''

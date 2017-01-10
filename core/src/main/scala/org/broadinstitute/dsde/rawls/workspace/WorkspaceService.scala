@@ -440,8 +440,8 @@ class WorkspaceService(protected val userInfo: UserInfo, val dataSource: SlickDa
             dataAccess.workspaceQuery.getInvites(workspaceContext.workspaceId).map { invites =>
               // toMap below will drop duplicate keys, keeping the last entry only
               // sort by access level to make sure higher access levels remain in the resulting map
-              val granted = emailsAndAccess.sortBy { case (_, accessLevel) => accessLevel }.map { case (email, accessLevel) => email -> AccessEntry(accessLevel, false)}
-              val pending = invites.sortBy { case (_, accessLevel) => accessLevel }.map { case (email, accessLevel) => email -> AccessEntry(accessLevel, true)}
+              val granted = emailsAndAccess.sortBy { case (_, accessLevel, _) => accessLevel }.map { case (email, accessLevel, canShare) => email -> AccessEntry(accessLevel, false, canShare)}
+              val pending = invites.sortBy { case (_, accessLevel) => accessLevel }.map { case (email, accessLevel) => email -> AccessEntry(accessLevel, true, false)}
 
               RequestComplete(StatusCodes.OK, WorkspaceACL((granted ++ pending).toMap))
             }
@@ -463,8 +463,25 @@ class WorkspaceService(protected val userInfo: UserInfo, val dataSource: SlickDa
 
     val overwriteGroupMessagesFuture = dataSource.inTransaction { dataAccess =>
       withWorkspaceContext(workspaceName, dataAccess) { workspaceContext =>
-        requireAccessIgnoreLock(workspaceContext.workspace, WorkspaceAccessLevels.Owner, dataAccess) {
+//        requireAccessIgnoreLock(workspaceContext.workspace, WorkspaceAccessLevels.Owner, dataAccess) {
+//          determineCompleteNewAcls(aclUpdates, dataAccess, workspaceContext)
+//        }
+
+        getMaximumAccessLevel(RawlsUser(userInfo), workspaceContext, dataAccess) flatMap { accessLevel =>
+          if(accessLevel < WorkspaceAccessLevels.Owner) {
+            aclUpdates.map(update => WorkspaceACLUpdate(update.email, update.accessLevel, Option(false))) //only owners can give grant permissions. silently convert if that's not the case
+          }
+
+          //can only give permission up to their own permission level. silently convert > to =
+          aclUpdates.map { update =>
+            if(update.accessLevel > accessLevel) {
+              WorkspaceACLUpdate(update.email, accessLevel, update.canShare)
+            }
+            else update
+          }
+
           determineCompleteNewAcls(aclUpdates, dataAccess, workspaceContext)
+
         }
       }
     }
@@ -504,7 +521,7 @@ class WorkspaceService(protected val userInfo: UserInfo, val dataSource: SlickDa
     dataSource.inTransaction { dataAccess =>
       withWorkspaceContext(workspaceName, dataAccess) { workspaceContext =>
         dataAccess.workspaceQuery.getInvites(workspaceContext.workspaceId).map { pairs =>
-          pairs.map(pair => WorkspaceACLUpdate(pair._1, pair._2))
+          pairs.map(pair => WorkspaceACLUpdate(pair._1, pair._2, Option(false))) //temp
         }
       }
     }
@@ -525,7 +542,7 @@ class WorkspaceService(protected val userInfo: UserInfo, val dataSource: SlickDa
   private def saveWorkspaceInvites(invites: Seq[WorkspaceACLUpdate], existingInvites: Seq[WorkspaceACLUpdate], workspaceName: WorkspaceName) = {
     dataSource.inTransaction { dataAccess =>
       withWorkspaceContext(workspaceName, dataAccess) { workspaceContext =>
-        val dedupedInvites = invites.filterNot(update => existingInvites.contains(WorkspaceACLUpdate(update.email, update.accessLevel)))
+        val dedupedInvites = invites.filterNot(update => existingInvites.contains(WorkspaceACLUpdate(update.email, update.accessLevel, Option(false)))) //temp
         DBIO.sequence(dedupedInvites.map(invite => dataAccess.workspaceQuery.saveInvite(workspaceContext.workspaceId, userInfo.userSubjectId, invite)))
       }
     }
@@ -540,6 +557,7 @@ class WorkspaceService(protected val userInfo: UserInfo, val dataSource: SlickDa
    * @return tuple: messages to send to UserService to overwrite acl groups, email that were not found in the process
    */
   private def determineCompleteNewAcls(aclUpdates: Seq[WorkspaceACLUpdate], dataAccess: DataAccess, workspaceContext: SlickWorkspaceContext): ReadAction[(Iterable[OverwriteGroupMembers], Seq[WorkspaceACLUpdate], Map[Either[RawlsUserRef,RawlsGroupRef], WorkspaceAccessLevels.WorkspaceAccessLevel])] = {
+    println(aclUpdates)
     for {
       refsToUpdateByEmail <- dataAccess.rawlsGroupQuery.loadRefsFromEmails(aclUpdates.map(_.email))
       existingRefsAndLevels <- dataAccess.workspaceQuery.findWorkspaceUsersAndAccessLevel(workspaceContext.workspaceId)

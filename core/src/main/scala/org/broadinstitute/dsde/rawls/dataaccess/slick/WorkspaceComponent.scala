@@ -40,6 +40,9 @@ case class PendingWorkspaceAccessRecord(
 /** result class for workspaceQuery.findAssociatedGroupsToIntersect, target = group1 intersect group2 */
 case class GroupsToIntersect(target: RawlsGroupRef, group1: RawlsGroupRef, group2: RawlsGroupRef)
 
+case class WorkspaceUserShareRecord(workspaceId: UUID, subjectId: String, canShare: Boolean)
+case class WorkspaceGroupShareRecord(workspaceId: UUID, groupName: String, canShare: Boolean)
+
 trait WorkspaceComponent {
   this: DriverComponent
     with AttributeComponent
@@ -99,8 +102,32 @@ trait WorkspaceComponent {
     def * = (workspaceId, userEmail, originSubjectId, inviteDate, accessLevel) <> (PendingWorkspaceAccessRecord.tupled, PendingWorkspaceAccessRecord.unapply)
   }
 
+  class WorkspaceUserShareTable(tag: Tag) extends Table[WorkspaceUserShareRecord](tag, "WORKSPACE_USER_SHARE") {
+    def workspaceId = column[UUID]("workspace_id")
+    def userSubjectId = column[String]("user_subject_id")
+    def canShare = column[Boolean]("can_share")
+
+    def workspace = foreignKey("FK_WS_USER_SHARE_WS", workspaceId, workspaceQuery)(_.id)
+    def user = foreignKey("FK_WS_USER_SHARE_GROUP", userSubjectId, rawlsUserQuery)(_.userSubjectId)
+
+    def * = (workspaceId, userSubjectId, canShare) <> (WorkspaceUserShareRecord.tupled, WorkspaceUserShareRecord.unapply)
+  }
+
+  class WorkspaceGroupShareTable(tag: Tag) extends Table[WorkspaceGroupShareRecord](tag, "WORKSPACE_GROUP_SHARE") {
+    def workspaceId = column[UUID]("workspace_id")
+    def groupName = column[String]("group_name")
+    def canShare = column[Boolean]("can_share")
+
+    def workspace = foreignKey("FK_WS_GROUP_SHARE_WS", workspaceId, workspaceQuery)(_.id)
+    def group = foreignKey("FK_WS_GROUP_SHARE_GROUP", groupName, rawlsGroupQuery)(_.groupName)
+
+    def * = (workspaceId, groupName, canShare) <> (WorkspaceGroupShareRecord.tupled, WorkspaceGroupShareRecord.unapply)
+  }
+
   protected val workspaceAccessQuery = TableQuery[WorkspaceAccessTable]
   protected val pendingWorkspaceAccessQuery = TableQuery[PendingWorkspaceAccessTable]
+  protected val workspaceUserShareQuery = TableQuery[WorkspaceUserShareTable]
+  protected val workspaceGroupShareQuery = TableQuery[WorkspaceGroupShareTable]
 
   object workspaceQuery extends TableQuery(new WorkspaceTable(_)) {
     private type WorkspaceQueryType = driver.api.Query[WorkspaceTable, WorkspaceRecord, Seq]
@@ -237,23 +264,25 @@ trait WorkspaceComponent {
       (pendingWorkspaceAccessQuery.filter(_.userEmail === userEmail.value)).delete
     }
     
-    def listEmailsAndAccessLevel(workspaceContext: SlickWorkspaceContext): ReadAction[Seq[(String, WorkspaceAccessLevel)]] = {
+    def listEmailsAndAccessLevel(workspaceContext: SlickWorkspaceContext): ReadAction[Seq[(String, WorkspaceAccessLevel, Boolean)]] = {
       val accessAndUserEmail = (for {
         access <- workspaceAccessQuery if (access.workspaceId === workspaceContext.workspaceId && access.isRealmAcl === false)
         group <- rawlsGroupQuery if (access.groupName === group.groupName)
         userGroup <- groupUsersQuery if (group.groupName === userGroup.groupName)
         user <- rawlsUserQuery if (user.userSubjectId === userGroup.userSubjectId)
-      } yield (access, user)).map { case (access, user) => (access.accessLevel, user.userEmail) }
+        sharePermission <- workspaceUserShareQuery if (user.userSubjectId === sharePermission.userSubjectId)
+      } yield (access, user, sharePermission)).map { case (access, user, sharePermission) => (access.accessLevel, user.userEmail, sharePermission.canShare) }
 
       val accessAndSubGroupEmail = (for {
         access <- workspaceAccessQuery if (access.workspaceId === workspaceContext.workspaceId && access.isRealmAcl === false)
         group <- rawlsGroupQuery if (access.groupName === group.groupName)
         subGroupGroup <- groupSubgroupsQuery if (group.groupName === subGroupGroup.parentGroupName)
         subGroup <- rawlsGroupQuery if (subGroup.groupName === subGroupGroup.childGroupName)
-      } yield (access, subGroup)).map { case (access, subGroup) => (access.accessLevel, subGroup.groupEmail) }
+        sharePermission <- workspaceGroupShareQuery if (subGroup.groupName === sharePermission.groupName)
+      } yield (access, subGroup, sharePermission)).map { case (access, subGroup, sharePermission) => (access.accessLevel, subGroup.groupEmail, sharePermission.canShare) }
 
-      (accessAndUserEmail union accessAndSubGroupEmail).result.map(_.map { case (access, email) => 
-        (email, WorkspaceAccessLevels.withName(access))
+      (accessAndUserEmail union accessAndSubGroupEmail).result.map(_.map { case (access, email, canShare) =>
+        (email, WorkspaceAccessLevels.withName(access), canShare)
       })
     }
 
