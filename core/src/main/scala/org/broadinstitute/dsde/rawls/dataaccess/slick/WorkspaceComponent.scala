@@ -40,8 +40,8 @@ case class PendingWorkspaceAccessRecord(
 /** result class for workspaceQuery.findAssociatedGroupsToIntersect, target = group1 intersect group2 */
 case class GroupsToIntersect(target: RawlsGroupRef, group1: RawlsGroupRef, group2: RawlsGroupRef)
 
-case class WorkspaceUserShareRecord(workspaceId: UUID, subjectId: String, canShare: Boolean)
-case class WorkspaceGroupShareRecord(workspaceId: UUID, groupName: String, canShare: Boolean)
+case class WorkspaceUserShareRecord(workspaceId: UUID, subjectId: String)
+case class WorkspaceGroupShareRecord(workspaceId: UUID, groupName: String)
 
 trait WorkspaceComponent {
   this: DriverComponent
@@ -105,23 +105,21 @@ trait WorkspaceComponent {
   class WorkspaceUserShareTable(tag: Tag) extends Table[WorkspaceUserShareRecord](tag, "WORKSPACE_USER_SHARE") {
     def workspaceId = column[UUID]("workspace_id")
     def userSubjectId = column[String]("user_subject_id")
-    def canShare = column[Boolean]("can_share")
 
     def workspace = foreignKey("FK_WS_USER_SHARE_WS", workspaceId, workspaceQuery)(_.id)
     def user = foreignKey("FK_WS_USER_SHARE_GROUP", userSubjectId, rawlsUserQuery)(_.userSubjectId)
 
-    def * = (workspaceId, userSubjectId, canShare) <> (WorkspaceUserShareRecord.tupled, WorkspaceUserShareRecord.unapply)
+    def * = (workspaceId, userSubjectId) <> (WorkspaceUserShareRecord.tupled, WorkspaceUserShareRecord.unapply)
   }
 
   class WorkspaceGroupShareTable(tag: Tag) extends Table[WorkspaceGroupShareRecord](tag, "WORKSPACE_GROUP_SHARE") {
     def workspaceId = column[UUID]("workspace_id")
     def groupName = column[String]("group_name")
-    def canShare = column[Boolean]("can_share")
 
     def workspace = foreignKey("FK_WS_GROUP_SHARE_WS", workspaceId, workspaceQuery)(_.id)
     def group = foreignKey("FK_WS_GROUP_SHARE_GROUP", groupName, rawlsGroupQuery)(_.groupName)
 
-    def * = (workspaceId, groupName, canShare) <> (WorkspaceGroupShareRecord.tupled, WorkspaceGroupShareRecord.unapply)
+    def * = (workspaceId, groupName) <> (WorkspaceGroupShareRecord.tupled, WorkspaceGroupShareRecord.unapply)
   }
 
   protected val workspaceAccessQuery = TableQuery[WorkspaceAccessTable]
@@ -263,14 +261,6 @@ trait WorkspaceComponent {
     def deleteWorkspaceInvitesForUser(userEmail: RawlsUserEmail) = {
       (pendingWorkspaceAccessQuery.filter(_.userEmail === userEmail.value)).delete
     }
-
-//    def getShareStatusForUsers(workspaceId: UUID, subjectId: String) = {
-//      workspaceUserShareQuery.filter(_.userSubjectId === subjectId).joinLeft(rawlsUser)
-//
-//      //val x =
-//        //query.countDistinct
-//      //x.map(result => result == 1)
-//    }
     
     def listEmailsAndAccessLevel(workspaceContext: SlickWorkspaceContext): ReadAction[Seq[(String, WorkspaceAccessLevel, Boolean)]] = {
       val accessAndUserEmail = (for {
@@ -278,7 +268,6 @@ trait WorkspaceComponent {
         group <- rawlsGroupQuery if (access.groupName === group.groupName)
         userGroup <- groupUsersQuery if (group.groupName === userGroup.groupName)
         user <- rawlsUserQuery if (user.userSubjectId === userGroup.userSubjectId)
-        //sharePermission <- getShareStatusForUser(user.userSubjectId)
       } yield (access, user)).map { case (access, user) => (access.accessLevel, user.userEmail, user.userSubjectId) }
 
       val accessAndSubGroupEmail = (for {
@@ -286,7 +275,6 @@ trait WorkspaceComponent {
         group <- rawlsGroupQuery if (access.groupName === group.groupName)
         subGroupGroup <- groupSubgroupsQuery if (group.groupName === subGroupGroup.parentGroupName)
         subGroup <- rawlsGroupQuery if (subGroup.groupName === subGroupGroup.childGroupName)
-        //sharePermission <- getShareStatusForGroup(subGroup.groupName)
       } yield (access, subGroup)).map { case (access, subGroup) => (access.accessLevel, subGroup.groupEmail, subGroup.groupName) }
 
       val x = accessAndUserEmail.joinLeft(workspaceUserShareQuery).on(_._3 === _.userSubjectId).map{ case (thing1, thing2) => (thing1._1, thing1._2, thing2.isDefined)}
