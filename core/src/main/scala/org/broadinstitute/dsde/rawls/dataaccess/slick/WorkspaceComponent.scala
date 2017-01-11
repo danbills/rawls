@@ -263,6 +263,14 @@ trait WorkspaceComponent {
     def deleteWorkspaceInvitesForUser(userEmail: RawlsUserEmail) = {
       (pendingWorkspaceAccessQuery.filter(_.userEmail === userEmail.value)).delete
     }
+
+//    def getShareStatusForUsers(workspaceId: UUID, subjectId: String) = {
+//      workspaceUserShareQuery.filter(_.userSubjectId === subjectId).joinLeft(rawlsUser)
+//
+//      //val x =
+//        //query.countDistinct
+//      //x.map(result => result == 1)
+//    }
     
     def listEmailsAndAccessLevel(workspaceContext: SlickWorkspaceContext): ReadAction[Seq[(String, WorkspaceAccessLevel, Boolean)]] = {
       val accessAndUserEmail = (for {
@@ -270,19 +278,24 @@ trait WorkspaceComponent {
         group <- rawlsGroupQuery if (access.groupName === group.groupName)
         userGroup <- groupUsersQuery if (group.groupName === userGroup.groupName)
         user <- rawlsUserQuery if (user.userSubjectId === userGroup.userSubjectId)
-        sharePermission <- workspaceUserShareQuery if (user.userSubjectId === sharePermission.userSubjectId)
-      } yield (access, user, sharePermission)).map { case (access, user, sharePermission) => (access.accessLevel, user.userEmail, sharePermission.canShare) }
+        //sharePermission <- getShareStatusForUser(user.userSubjectId)
+      } yield (access, user)).map { case (access, user) => (access.accessLevel, user.userEmail, user.userSubjectId) }
 
       val accessAndSubGroupEmail = (for {
         access <- workspaceAccessQuery if (access.workspaceId === workspaceContext.workspaceId && access.isRealmAcl === false)
         group <- rawlsGroupQuery if (access.groupName === group.groupName)
         subGroupGroup <- groupSubgroupsQuery if (group.groupName === subGroupGroup.parentGroupName)
         subGroup <- rawlsGroupQuery if (subGroup.groupName === subGroupGroup.childGroupName)
-        sharePermission <- workspaceGroupShareQuery if (subGroup.groupName === sharePermission.groupName)
-      } yield (access, subGroup, sharePermission)).map { case (access, subGroup, sharePermission) => (access.accessLevel, subGroup.groupEmail, sharePermission.canShare) }
+        //sharePermission <- getShareStatusForGroup(subGroup.groupName)
+      } yield (access, subGroup)).map { case (access, subGroup) => (access.accessLevel, subGroup.groupEmail, subGroup.groupName) }
 
-      (accessAndUserEmail union accessAndSubGroupEmail).result.map(_.map { case (access, email, canShare) =>
-        (email, WorkspaceAccessLevels.withName(access), canShare)
+      val x = accessAndUserEmail.joinLeft(workspaceUserShareQuery).on(_._3 === _.userSubjectId).map{ case (thing1, thing2) => (thing1._1, thing1._2, thing2.isDefined)}
+      val y = accessAndSubGroupEmail.joinLeft(workspaceGroupShareQuery).on(_._3 === _.groupName).map{ case (thing1, thing2) => (thing1._1, thing1._2, thing2.isDefined)}
+
+      (x union y).result.map(_.map { case (access, email, canShare) =>
+        val accessLevel = WorkspaceAccessLevels.withName(access)
+        //sharing is implied for owners and project owners, but the permission may not be in the DB. rectify that here
+        (email, accessLevel, ((accessLevel >= WorkspaceAccessLevels.Owner) || canShare))
       })
     }
 
