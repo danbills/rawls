@@ -261,6 +261,11 @@ trait WorkspaceComponent {
     def deleteWorkspaceInvitesForUser(userEmail: RawlsUserEmail) = {
       (pendingWorkspaceAccessQuery.filter(_.userEmail === userEmail.value)).delete
     }
+
+    def getUserSharePerms(subjectId: RawlsUserSubjectId, workspaceContext: SlickWorkspaceContext): ReadAction[Int] = {
+      val x = workspaceUserShareQuery.filter(rec => (rec.userSubjectId === subjectId.value && rec.workspaceId === workspaceContext.workspaceId)).countDistinct.result
+      x
+    }
     
     def listEmailsAndAccessLevel(workspaceContext: SlickWorkspaceContext): ReadAction[Seq[(String, WorkspaceAccessLevel, Boolean)]] = {
       val accessAndUserEmail = (for {
@@ -277,12 +282,12 @@ trait WorkspaceComponent {
         subGroup <- rawlsGroupQuery if (subGroup.groupName === subGroupGroup.childGroupName)
       } yield (access, subGroup)).map { case (access, subGroup) => (access.accessLevel, subGroup.groupEmail, subGroup.groupName) }
 
-      val x = accessAndUserEmail.joinLeft(workspaceUserShareQuery).on(_._3 === _.userSubjectId).map{ case (thing1, thing2) => (thing1._1, thing1._2, thing2.isDefined)}
-      val y = accessAndSubGroupEmail.joinLeft(workspaceGroupShareQuery).on(_._3 === _.groupName).map{ case (thing1, thing2) => (thing1._1, thing1._2, thing2.isDefined)}
+      val userPermissionQuery = accessAndUserEmail.joinLeft(workspaceUserShareQuery).on(_._3 === _.userSubjectId).map{ case (userInfo, permission) => (userInfo._1, userInfo._2, permission.isDefined)}
+      val groupPermissionQuery = accessAndSubGroupEmail.joinLeft(workspaceGroupShareQuery).on(_._3 === _.groupName).map{ case (groupInfo, permission) => (groupInfo._1, groupInfo._2, permission.isDefined)}
 
-      (x union y).result.map(_.map { case (access, email, canShare) =>
+      (userPermissionQuery union groupPermissionQuery).result.map(_.map { case (access, email, canShare) =>
         val accessLevel = WorkspaceAccessLevels.withName(access)
-        //sharing is implied for owners and project owners, but the permission may not be in the DB. rectify that here
+        //sharing is implied for owners and project owners, so the permission may not be in the DB. rectify that here
         (email, accessLevel, ((accessLevel >= WorkspaceAccessLevels.Owner) || canShare))
       })
     }

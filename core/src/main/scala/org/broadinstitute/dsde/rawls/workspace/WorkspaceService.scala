@@ -222,6 +222,10 @@ class WorkspaceService(protected val userInfo: UserInfo, val dataSource: SlickDa
       else als.reduce(WorkspaceAccessLevels.max)
     }
   }
+
+  def getSharePermissions(user: RawlsUser, workspaceContext: SlickWorkspaceContext, dataAccess: DataAccess): ReadAction[Boolean] = {
+    dataAccess.workspaceQuery.getUserSharePerms(user.userSubjectId, workspaceContext).map(_ == 1)
+  }
   
   def getWorkspaceOwners(workspace: Workspace, dataAccess: DataAccess): ReadAction[Seq[String]] = {
     dataAccess.rawlsGroupQuery.load(workspace.accessLevels(WorkspaceAccessLevels.Owner)).flatMap {
@@ -435,7 +439,7 @@ class WorkspaceService(protected val userInfo: UserInfo, val dataSource: SlickDa
   def getACL(workspaceName: WorkspaceName): Future[PerRequestMessage] =
     dataSource.inTransaction { dataAccess =>
       withWorkspaceContext(workspaceName, dataAccess) { workspaceContext =>
-        requireAccessIgnoreLock(workspaceContext.workspace, WorkspaceAccessLevels.Owner, dataAccess) {
+        requireAccessIgnoreLock(workspaceContext.workspace, WorkspaceAccessLevels.Read, dataAccess) {
           dataAccess.workspaceQuery.listEmailsAndAccessLevel(workspaceContext).flatMap { emailsAndAccess =>
             dataAccess.workspaceQuery.getInvites(workspaceContext.workspaceId).map { invites =>
               // toMap below will drop duplicate keys, keeping the last entry only
@@ -463,25 +467,27 @@ class WorkspaceService(protected val userInfo: UserInfo, val dataSource: SlickDa
 
     val overwriteGroupMessagesFuture = dataSource.inTransaction { dataAccess =>
       withWorkspaceContext(workspaceName, dataAccess) { workspaceContext =>
-//        requireAccessIgnoreLock(workspaceContext.workspace, WorkspaceAccessLevels.Owner, dataAccess) {
-//          determineCompleteNewAcls(aclUpdates, dataAccess, workspaceContext)
-//        }
+        //users of all access levels can theoretically share the workspace. only shut out users with NoAccess
+        //TODO: requireAccess and getMaximumAccessLevel are very similar but I need both right now to get the accessLevel back. merge them into one that solves my needs
+        requireAccessIgnoreLock(workspaceContext.workspace, WorkspaceAccessLevels.Read, dataAccess) {
+          requireSharePermission(workspaceContext.workspace, dataAccess) {
+            getMaximumAccessLevel(RawlsUser(userInfo), workspaceContext, dataAccess) flatMap { accessLevel =>
+              getSharePermissions(RawlsUser(userInfo), workspaceContext, dataAccess) flatMap { permission =>
+                // If the user is an owner, we want them to be able to do everything
+                // If NoAccess < accessLevel < Owner, and the user has share permissions, allow them to share with users up to their own accessLevel
+                // If  ^            ^             ^ , and the user doesn't have share permissions, silently empty all canShare fields in the aclUpdates
 
-        getMaximumAccessLevel(RawlsUser(userInfo), workspaceContext, dataAccess) flatMap { accessLevel =>
-          if(accessLevel < WorkspaceAccessLevels.Owner) {
-            aclUpdates.map(update => WorkspaceACLUpdate(update.email, update.accessLevel, Option(false))) //only owners can give grant permissions. silently convert if that's not the case
-          }
-
-          //can only give permission up to their own permission level. silently convert > to =
-          aclUpdates.map { update =>
-            if(update.accessLevel > accessLevel) {
-              WorkspaceACLUpdate(update.email, accessLevel, update.canShare)
+                (accessLevel, permission) match {
+                  case (Owner, _) => determineCompleteNewAcls(aclUpdates, dataAccess, workspaceContext) //Owners can do whatever they want
+                  case (accessLevel, true) => {
+                    val correctedAclUpdates = aclUpdates.map(update => WorkspaceACLUpdate(update.email, update.accessLevel, None)).filterNot(_.accessLevel > accessLevel)
+                    determineCompleteNewAcls(correctedAclUpdates, dataAccess, workspaceContext)
+                  }
+                  case (_, false) => determineCompleteNewAcls(Seq.empty, dataAccess, workspaceContext) //this clause is useless
+                }
+              }
             }
-            else update
           }
-
-          determineCompleteNewAcls(aclUpdates, dataAccess, workspaceContext)
-
         }
       }
     }
@@ -557,7 +563,6 @@ class WorkspaceService(protected val userInfo: UserInfo, val dataSource: SlickDa
    * @return tuple: messages to send to UserService to overwrite acl groups, email that were not found in the process
    */
   private def determineCompleteNewAcls(aclUpdates: Seq[WorkspaceACLUpdate], dataAccess: DataAccess, workspaceContext: SlickWorkspaceContext): ReadAction[(Iterable[OverwriteGroupMembers], Seq[WorkspaceACLUpdate], Map[Either[RawlsUserRef,RawlsGroupRef], WorkspaceAccessLevels.WorkspaceAccessLevel])] = {
-    println(aclUpdates)
     for {
       refsToUpdateByEmail <- dataAccess.rawlsGroupQuery.loadRefsFromEmails(aclUpdates.map(_.email))
       existingRefsAndLevels <- dataAccess.workspaceQuery.findWorkspaceUsersAndAccessLevel(workspaceContext.workspaceId)
@@ -1740,6 +1745,13 @@ class WorkspaceService(protected val userInfo: UserInfo, val dataSource: SlickDa
       }
       else if (userLevel >= WorkspaceAccessLevels.Read) DBIO.failed(new RawlsExceptionWithErrorReport(errorReport = ErrorReport(StatusCodes.Forbidden, accessDeniedMessage(workspace.toWorkspaceName))))
       else DBIO.failed(new RawlsExceptionWithErrorReport(errorReport = ErrorReport(StatusCodes.NotFound, noSuchWorkspaceMessage(workspace.toWorkspaceName))))
+    }
+  }
+
+  private def requireSharePermission[T](workspace: Workspace, dataAccess: DataAccess)(codeBlock: => ReadWriteAction[T]): ReadWriteAction[T] = {
+    getSharePermissions(RawlsUser(userInfo), SlickWorkspaceContext(workspace), dataAccess) flatMap { canShare =>
+      if (canShare) codeBlock
+      else DBIO.failed(new RawlsExceptionWithErrorReport(errorReport = ErrorReport(StatusCodes.Forbidden, accessDeniedMessage(workspace.toWorkspaceName))))
     }
   }
 
