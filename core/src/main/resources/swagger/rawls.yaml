@@ -4274,6 +4274,7 @@ definitions:
     required:
       - email
       - accessLevel
+      - canShare
     properties:
       email:
         type: string

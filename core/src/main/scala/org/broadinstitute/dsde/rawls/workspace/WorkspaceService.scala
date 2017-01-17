@@ -444,10 +444,11 @@ class WorkspaceService(protected val userInfo: UserInfo, val dataSource: SlickDa
             dataAccess.workspaceQuery.getInvites(workspaceContext.workspaceId).map { invites =>
               // toMap below will drop duplicate keys, keeping the last entry only
               // sort by access level to make sure higher access levels remain in the resulting map
-              val granted = emailsAndAccess.sortBy { case (_, accessLevel, _) => accessLevel }.map { case (email, accessLevel, canShare) => email -> AccessEntry(accessLevel, false, canShare)}
+              val grantedUsers = emailsAndAccess._1.sortBy { case (_, accessLevel, _) => accessLevel }.map { case (email, accessLevel, canShare) => email -> AccessEntry(accessLevel, false, canShare)}
+              val grantedGroups = emailsAndAccess._2.sortBy { case (_, accessLevel, _) => accessLevel }.map { case (email, accessLevel, canShare) => email -> AccessEntry(accessLevel, false, canShare)}
               val pending = invites.sortBy { case (_, accessLevel) => accessLevel }.map { case (email, accessLevel) => email -> AccessEntry(accessLevel, true, false)}
 
-              RequestComplete(StatusCodes.OK, WorkspaceACL((granted ++ pending).toMap))
+              RequestComplete(StatusCodes.OK, WorkspaceACL((grantedUsers ++ grantedGroups ++ pending).toMap))
             }
           }
         }
@@ -470,21 +471,16 @@ class WorkspaceService(protected val userInfo: UserInfo, val dataSource: SlickDa
         //users of all access levels can theoretically share the workspace. only shut out users with NoAccess
         //TODO: requireAccess and getMaximumAccessLevel are very similar but I need both right now to get the accessLevel back. merge them into one that solves my needs
         requireAccessIgnoreLock(workspaceContext.workspace, WorkspaceAccessLevels.Read, dataAccess) {
-          requireSharePermission(workspaceContext.workspace, dataAccess) {
-            getMaximumAccessLevel(RawlsUser(userInfo), workspaceContext, dataAccess) flatMap { accessLevel =>
-              getSharePermissions(RawlsUser(userInfo), workspaceContext, dataAccess) flatMap { permission =>
-                // If the user is an owner, we want them to be able to do everything
-                // If NoAccess < accessLevel < Owner, and the user has share permissions, allow them to share with users up to their own accessLevel
-                // If  ^            ^             ^ , and the user doesn't have share permissions, silently empty all canShare fields in the aclUpdates
+          getMaximumAccessLevel(RawlsUser(userInfo), workspaceContext, dataAccess) flatMap { accessLevel =>
+            requireSharePermission(workspaceContext.workspace, accessLevel, dataAccess) {
+              // If the user is an owner, we want them to be able to do everything
+              // If NoAccess < accessLevel < Owner, and the user has share permissions, allow them to share with users up to their own accessLevel
+              // If  ^            ^             ^ , and the user doesn't have share permissions, silently empty all canShare fields in the aclUpdates
 
-                (accessLevel, permission) match {
-                  case (Owner, _) => determineCompleteNewAcls(aclUpdates, dataAccess, workspaceContext) //Owners can do whatever they want
-                  case (accessLevel, true) => {
-                    val correctedAclUpdates = aclUpdates.map(update => WorkspaceACLUpdate(update.email, update.accessLevel, None)).filterNot(_.accessLevel > accessLevel)
-                    determineCompleteNewAcls(correctedAclUpdates, dataAccess, workspaceContext)
-                  }
-                  case (_, false) => determineCompleteNewAcls(Seq.empty, dataAccess, workspaceContext) //this clause is useless
-                }
+              if (accessLevel >= WorkspaceAccessLevels.Owner) determineCompleteNewAcls(aclUpdates, dataAccess, workspaceContext)
+              else {
+                val correctedAclUpdates = aclUpdates.map(update => WorkspaceACLUpdate(update.email, update.accessLevel, None)).filterNot(_.accessLevel > accessLevel)
+                determineCompleteNewAcls(correctedAclUpdates, dataAccess, workspaceContext)
               }
             }
           }
@@ -511,6 +507,11 @@ class WorkspaceService(protected val userInfo: UserInfo, val dataSource: SlickDa
     } yield {
       overwriteGroupResults.map {
         case RequestComplete(StatusCodes.NoContent) =>
+          println(actualChangesToMake)
+          println(deletedInvites)
+          println(savedInvites)
+          println(emailsNotFound)
+          println(existingInvites)
           RequestComplete(StatusCodes.OK, getUsersUpdatedResponse(actualChangesToMake, (deletedInvites ++ savedInvites), emailsNotFound, existingInvites))
         case otherwise => otherwise
       }.reduce { (prior, next) =>
@@ -527,7 +528,7 @@ class WorkspaceService(protected val userInfo: UserInfo, val dataSource: SlickDa
     dataSource.inTransaction { dataAccess =>
       withWorkspaceContext(workspaceName, dataAccess) { workspaceContext =>
         dataAccess.workspaceQuery.getInvites(workspaceContext.workspaceId).map { pairs =>
-          pairs.map(pair => WorkspaceACLUpdate(pair._1, pair._2, Option(false))) //temp
+          pairs.map(pair => WorkspaceACLUpdate(pair._1, pair._2, None))
         }
       }
     }
@@ -1748,9 +1749,9 @@ class WorkspaceService(protected val userInfo: UserInfo, val dataSource: SlickDa
     }
   }
 
-  private def requireSharePermission[T](workspace: Workspace, dataAccess: DataAccess)(codeBlock: => ReadWriteAction[T]): ReadWriteAction[T] = {
+  private def requireSharePermission[T](workspace: Workspace, accessLevel: WorkspaceAccessLevel, dataAccess: DataAccess)(codeBlock: => ReadWriteAction[T]): ReadWriteAction[T] = {
     getSharePermissions(RawlsUser(userInfo), SlickWorkspaceContext(workspace), dataAccess) flatMap { canShare =>
-      if (canShare) codeBlock
+      if (canShare || accessLevel >= WorkspaceAccessLevels.Owner) codeBlock
       else DBIO.failed(new RawlsExceptionWithErrorReport(errorReport = ErrorReport(StatusCodes.Forbidden, accessDeniedMessage(workspace.toWorkspaceName))))
     }
   }
