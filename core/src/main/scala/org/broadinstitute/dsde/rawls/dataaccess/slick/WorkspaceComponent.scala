@@ -267,7 +267,7 @@ trait WorkspaceComponent {
       x
     }
     
-    def listEmailsAndAccessLevel(workspaceContext: SlickWorkspaceContext): ReadAction[Seq[(String, WorkspaceAccessLevel, Boolean)]] = {
+    def listEmailsAndAccessLevel(workspaceContext: SlickWorkspaceContext): ReadAction[(Seq[(String, WorkspaceAccessLevel, Boolean)], Seq[(String, WorkspaceAccessLevel, Boolean)])] = {
       val accessAndUserEmail = (for {
         access <- workspaceAccessQuery if (access.workspaceId === workspaceContext.workspaceId && access.isRealmAcl === false)
         group <- rawlsGroupQuery if (access.groupName === group.groupName)
@@ -285,11 +285,26 @@ trait WorkspaceComponent {
       val userPermissionQuery = accessAndUserEmail.joinLeft(workspaceUserShareQuery).on(_._3 === _.userSubjectId).map{ case (userInfo, permission) => (userInfo._1, userInfo._2, permission.isDefined)}
       val groupPermissionQuery = accessAndSubGroupEmail.joinLeft(workspaceGroupShareQuery).on(_._3 === _.groupName).map{ case (groupInfo, permission) => (groupInfo._1, groupInfo._2, permission.isDefined)}
 
-      (userPermissionQuery union groupPermissionQuery).result.map(_.map { case (access, email, canShare) =>
+//      (userPermissionQuery union groupPermissionQuery).result.map(_.map { case (access, email, canShare) =>
+//        val accessLevel = WorkspaceAccessLevels.withName(access)
+//        //sharing is implied for owners and project owners, so the permission may not be in the DB. rectify that here
+//        (email, accessLevel, ((accessLevel >= WorkspaceAccessLevels.Owner) || canShare))
+//      })
+
+      //todo: rewrite
+      userPermissionQuery.result.map(_.map { case (access, email, canShare) =>
         val accessLevel = WorkspaceAccessLevels.withName(access)
-        //sharing is implied for owners and project owners, so the permission may not be in the DB. rectify that here
+          //sharing is implied for owners and project owners, so the permission may not be in the DB. rectify that here
         (email, accessLevel, ((accessLevel >= WorkspaceAccessLevels.Owner) || canShare))
-      })
+      }).flatMap { userResults =>
+        groupPermissionQuery.result.map(_.map { case (access, email, canShare) =>
+          val accessLevel = WorkspaceAccessLevels.withName(access)
+          //sharing is implied for owners and project owners, so the permission may not be in the DB. rectify that here
+          (email, accessLevel, ((accessLevel >= WorkspaceAccessLevels.Owner) || canShare))
+        }).map { groupResults =>
+          (userResults, groupResults)
+        }
+      }
     }
 
     def deleteWorkspaceAccessReferences(workspaceId: UUID) = {
