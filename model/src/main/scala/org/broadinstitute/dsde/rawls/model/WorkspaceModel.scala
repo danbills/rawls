@@ -9,6 +9,8 @@ import spray.http.StatusCode
 import spray.json._
 import spray.json.DefaultJsonProtocol._
 
+import scala.util.Try
+
 object Attributable {
   // if updating these, also update their use in SlickExpressionParsing
   val entityIdAttributeSuffix = "_id"
@@ -38,6 +40,9 @@ case class WorkspaceName(
 case class AttributeName(
                           namespace: String,
                           name: String) extends Ordered[AttributeName] {
+
+  require(Try(AttributeName.fromDelimitedName(namespace + AttributeName.delimiter + name)).isSuccess, s"Attribute ${namespace}:${name} has too many ${AttributeName.delimiter} delimiters" )
+
   // enable implicit ordering for sorting
   import scala.math.Ordered.orderingToOrdered
   def compare(that: AttributeName): Int = (this.namespace, this.name) compare (that.namespace, that.name)

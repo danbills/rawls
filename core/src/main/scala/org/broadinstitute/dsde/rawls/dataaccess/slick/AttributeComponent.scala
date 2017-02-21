@@ -186,6 +186,9 @@ trait AttributeComponent {
   protected abstract class AttributeQuery[OWNER_ID: TypeTag: BaseTypedType, RECORD <: AttributeRecord[OWNER_ID], T <: AttributeTable[OWNER_ID, RECORD]](cons: Tag => T, createRecord: (Long, OWNER_ID, String, String, Option[String], Option[Double], Option[Boolean], Option[String], Option[Long], Option[Int], Option[Int]) => RECORD) extends TableQuery[T](cons)  {
 
     def marshalAttribute(ownerId: OWNER_ID, attributeName: AttributeName, attribute: Attribute, entityIdsByRef: Map[AttributeEntityReference, Long]): Seq[T#TableElementType] = {
+      //validation!
+      validateUserDefinedString(attributeName.name)
+      validateUserDefinedString(attributeName.namespace)
 
       def marshalEmptyVal : Seq[T#TableElementType] = {
         Seq(marshalAttributeValue(ownerId, attributeName, AttributeNumber(-1), None, Option(0)))
@@ -216,6 +219,10 @@ trait AttributeComponent {
     }
 
     def batchInsertAttributes(attributes: Seq[RECORD]) = {
+      attributes.foreach { attrName =>
+        validateUserDefinedString(attrName.name)
+        validateUserDefinedString(attrName.namespace)
+      }
       insertInBatches(this, attributes)
     }
 
@@ -299,6 +306,12 @@ trait AttributeComponent {
       val (attrsToUpdateMap, attrsToInsertMap) = toSaveAttrMap.partition { case (k, v) => existingAttrMap.keySet.contains(k) }
       // delete attributes which currently exist but are not in the attributes to save
       val attributesToDelete = existingAttrMap.filterKeys(! attrsToUpdateMap.keySet.contains(_)).values
+
+      //validate all attributes to update. inserts will be validated in batchInsertAttributes
+      attrsToUpdateMap.values.foreach { attrName =>
+        validateUserDefinedString(attrName.name)
+        validateUserDefinedString(attrName.namespace)
+      }
 
       deleteAttributeRecords(attributesToDelete.toSeq) andThen
         batchInsertAttributes(attrsToInsertMap.values.toSeq) andThen
