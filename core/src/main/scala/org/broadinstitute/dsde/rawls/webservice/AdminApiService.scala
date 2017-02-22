@@ -252,11 +252,12 @@ trait AdminApiService extends HttpService with PerRequestCreator with UserInfoDi
     } ~
     path("admin" / "workspaces") {
       get {
-        parameters('attributeName.?, 'valueString.?, 'valueNumber.?, 'valueBoolean.?) { (nameOption, stringOption, numberOption, booleanOption) =>
+        parameters('realmName.?, 'attributeName.?, 'valueString.?, 'valueNumber.?, 'valueBoolean.?) { (realmNameOption, attributeNameOption, stringOption, numberOption, booleanOption) =>
           requestContext =>
-            val msg = nameOption match {
-              case None => WorkspaceService.ListAllWorkspaces
-              case Some(attributeName) =>
+            val msg = (realmNameOption, attributeNameOption) match {
+              case (None, None) => WorkspaceService.ListAllWorkspaces
+              case (Some(realmName), None) => WorkspaceService.ListAllWorkspaces(Option(realmName))
+              case (None, Some(attributeName)) =>
                 val name = AttributeName.fromDelimitedName(attributeName)
                 (stringOption, numberOption, booleanOption) match {
                   case (Some(string), None, None) => WorkspaceService.AdminListWorkspacesWithAttribute(name, AttributeString(string))
@@ -264,6 +265,7 @@ trait AdminApiService extends HttpService with PerRequestCreator with UserInfoDi
                   case (None, None, Some(boolean)) => WorkspaceService.AdminListWorkspacesWithAttribute(name, AttributeBoolean(boolean.toBoolean))
                   case _ => throw new RawlsException("Specify exactly one of valueString, valueNumber, or valueBoolean")
                 }
+              case _ => throw new RawlsException("You cannot filter on realmName and attributeName")
             }
             perRequest(requestContext, WorkspaceService.props(workspaceServiceConstructor, userInfo), msg)
         }

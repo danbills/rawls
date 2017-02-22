@@ -1242,6 +1242,18 @@ class AdminApiServiceSpec extends ApiServiceSpec {
       }
   }
 
+  it should "return 200 when getting workspaces by realm name" in withTestDataApiServices { services =>
+    import spray.json.DefaultJsonProtocol._
+    Get(s"/admin/workspaces?realmName=Test-Realm") ~>
+      sealRoute(services.adminRoutes) ~>
+      check {
+        assertResult(StatusCodes.OK) { status }
+        val foo = responseAs[Seq[Workspace]]
+        //responseAs[Seq[Workspace]] should contain testData.workspace
+        assert(foo.contains(testData.workspace) && !foo.contains(testData.otherWorkspaceWithRealm))
+      }
+  }
+
   it should "delete a workspace" in withTestDataApiServices { services =>
     Delete(s"/admin/workspaces/${testData.workspace.namespace}/${testData.workspace.name}") ~>
       sealRoute(services.adminRoutes) ~>

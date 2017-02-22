@@ -1229,6 +1229,11 @@ paths:
       operationId: listAllWorkspaces
       parameters:
         - in: query
+          description: Optional realm name to filter on
+          name: realmName
+          required: false
+          type: string
+        - in: query
           description: Optional workspace attribute to filter on
           name: attributeName
           required: false

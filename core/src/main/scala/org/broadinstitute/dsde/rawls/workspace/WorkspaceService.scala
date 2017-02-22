@@ -53,7 +53,7 @@ object WorkspaceService {
   case class DeleteWorkspace(workspaceName: WorkspaceName) extends WorkspaceServiceMessage
   case class UpdateWorkspace(workspaceName: WorkspaceName, operations: Seq[AttributeUpdateOperation]) extends WorkspaceServiceMessage
   case object ListWorkspaces extends WorkspaceServiceMessage
-  case object ListAllWorkspaces extends WorkspaceServiceMessage
+  case class ListAllWorkspaces(realmName: Option[String] = None) extends WorkspaceServiceMessage
   case class AdminListWorkspacesWithAttribute(attributeName: AttributeName, attributeValue: AttributeValue) extends WorkspaceServiceMessage
   case class CloneWorkspace(sourceWorkspace: WorkspaceName, destWorkspace: WorkspaceRequest) extends WorkspaceServiceMessage
   case class GetACL(workspaceName: WorkspaceName) extends WorkspaceServiceMessage
@@ -127,7 +127,7 @@ class WorkspaceService(protected val userInfo: UserInfo, val dataSource: SlickDa
     case DeleteWorkspace(workspaceName) => pipe(deleteWorkspace(workspaceName)) to sender
     case UpdateWorkspace(workspaceName, operations) => pipe(updateWorkspace(workspaceName, operations)) to sender
     case ListWorkspaces => pipe(listWorkspaces()) to sender
-    case ListAllWorkspaces => pipe(listAllWorkspaces()) to sender
+    case ListAllWorkspaces(realmRef) => pipe(listAllWorkspaces(realmRef)) to sender
     case AdminListWorkspacesWithAttribute(attributeName, attributeValue) => asFCAdmin { listWorkspacesWithAttribute(attributeName, attributeValue) } pipeTo sender
     case CloneWorkspace(sourceWorkspace, destWorkspaceRequest) => pipe(cloneWorkspace(sourceWorkspace, destWorkspaceRequest)) to sender
     case GetACL(workspaceName) => pipe(getACL(workspaceName)) to sender
@@ -1472,10 +1472,13 @@ class WorkspaceService(protected val userInfo: UserInfo, val dataSource: SlickDa
     }
   }
 
-  def listAllWorkspaces() = {
+  def listAllWorkspaces(realmName: Option[String]) = {
     asFCAdmin {
       dataSource.inTransaction { dataAccess =>
-        dataAccess.workspaceQuery.listAll.map(RequestComplete(StatusCodes.OK, _))
+        realmName match {
+          case None => dataAccess.workspaceQuery.listAll.map(RequestComplete(StatusCodes.OK, _))
+          case Some(realmName) => dataAccess.workspaceQuery.listAllInRealm(RawlsRealmRef(RawlsGroupName(realmName))).map(RequestComplete(StatusCodes.OK, _))
+        }
       }
     }
   }

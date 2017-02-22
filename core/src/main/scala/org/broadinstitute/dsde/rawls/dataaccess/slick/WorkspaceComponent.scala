@@ -134,6 +134,10 @@ trait WorkspaceComponent {
       loadWorkspaces(workspaceQuery)
     }
 
+    def listAllInRealm(realmRef: RawlsRealmRef): ReadAction[Seq[Workspace]] = {
+      loadWorkspaces(workspaceQuery.filter(_.realmGroupName === Option(realmRef.realmName.value)))
+    }
+
     def listWithAttribute(attrName: AttributeName, attrValue: AttributeValue): ReadAction[Seq[Workspace]] = {
       loadWorkspaces(getWorkspacesWithAttribute(attrName, attrValue))
     }
