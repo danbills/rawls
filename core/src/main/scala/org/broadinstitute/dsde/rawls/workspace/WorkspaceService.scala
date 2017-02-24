@@ -1789,15 +1789,26 @@ class WorkspaceService(protected val userInfo: UserInfo, val dataSource: SlickDa
     }
   }
 
+  private def isAllowedOrCurator(userLevel: WorkspaceAccessLevel, requiredLevel: WorkspaceAccessLevel): Future[Boolean] = {
+    if (userLevel >= requiredLevel)
+      Future.successful(true)
+    else
+      tryIsCurator(userInfo.userEmail)
+  }
+
   private def requireAccess[T](workspace: Workspace, requiredLevel: WorkspaceAccessLevel, dataAccess: DataAccess)(codeBlock: => ReadWriteAction[T]): ReadWriteAction[T] = {
     getMaximumAccessLevel(RawlsUser(userInfo), SlickWorkspaceContext(workspace), dataAccess) flatMap { userLevel =>
-      if (userLevel >= requiredLevel) {
-        if ( (requiredLevel > WorkspaceAccessLevels.Read) && workspace.isLocked )
-          DBIO.failed(new RawlsExceptionWithErrorReport(errorReport = ErrorReport(StatusCodes.Forbidden, s"The workspace ${workspace.toWorkspaceName} is locked.")))
-        else codeBlock
+      val allowedFuture = isAllowedOrCurator(userLevel, requiredLevel)
+      allowedFuture map { allowed =>
+        if (allowed) {
+          if (workspace.isLocked)
+            DBIO.failed(new RawlsExceptionWithErrorReport(errorReport = ErrorReport(StatusCodes.Forbidden, s"The workspace ${workspace.toWorkspaceName} is locked.")))
+//          else codeBlock
+        }
+        else if (userLevel >= WorkspaceAccessLevels.Read) DBIO.failed(new RawlsExceptionWithErrorReport(errorReport = ErrorReport(StatusCodes.Forbidden, accessDeniedMessage(workspace.toWorkspaceName))))
+        else DBIO.failed(new RawlsExceptionWithErrorReport(errorReport = ErrorReport(StatusCodes.NotFound, noSuchWorkspaceMessage(workspace.toWorkspaceName))))
       }
-      else if (userLevel >= WorkspaceAccessLevels.Read) DBIO.failed(new RawlsExceptionWithErrorReport(errorReport = ErrorReport(StatusCodes.Forbidden, accessDeniedMessage(workspace.toWorkspaceName))))
-      else DBIO.failed(new RawlsExceptionWithErrorReport(errorReport = ErrorReport(StatusCodes.NotFound, noSuchWorkspaceMessage(workspace.toWorkspaceName))))
+      codeBlock
     }
   }
 
