@@ -3181,7 +3181,9 @@ paths:
           name: catalogUpdates
           required: true
           schema:
-            $ref: '#/definitions/WorkspaceCatalogUpdate'
+            type: array
+            items:
+              $ref: '#/definitions/WorkspaceCatalogUpdate'
       security:
         - authorization:
             - openid
