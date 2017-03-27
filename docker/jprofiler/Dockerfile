@@ -1,4 +1,4 @@
-FROM broadinstitute/rawls:dev-base
+FROM broadinstitute/rawls:he_prof_baseline
 
 RUN wget http://download-aws.ej-technologies.com/jprofiler/jprofiler_linux_9_1.tar.gz && tar -xvf jprofiler_linux_9_1.tar.gz && rm jprofiler_linux_9_1.tar.gz
 
