@@ -176,7 +176,7 @@ case class EntityCopyDefinition(
 
 case class EntitySoftConflict(entityType: String, name: String, conflicts: Seq[EntitySoftConflict]) {
   def isEmpty: Boolean = conflicts.isEmpty
-  def entityName = (entityType, name)
+  def toRef = AttributeEntityReference(entityType, name)
 }
 
 case class EntityHardConflict(entityType: String, name: String) {
