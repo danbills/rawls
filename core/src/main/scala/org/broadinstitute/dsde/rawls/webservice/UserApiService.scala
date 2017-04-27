@@ -114,6 +114,13 @@ trait UserApiService extends HttpService with PerRequestCreator with UserInfoDir
       } ~
         pathPrefix(Segment) { groupName =>
         val groupRef = ManagedGroupRef(RawlsGroupName(groupName))
+        path("requestAccess") {
+          get {
+            requestContext => perRequest(requestContext,
+              UserService.props(userServiceConstructor, userInfo),
+              UserService.ListManagedGroupsForUser)
+          }
+        } ~
         pathEnd {
           get {
             requestContext => perRequest(requestContext,

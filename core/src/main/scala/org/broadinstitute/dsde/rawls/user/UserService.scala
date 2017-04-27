@@ -61,6 +61,7 @@ object UserService {
   case class CreateManagedGroup(groupRef: ManagedGroupRef) extends UserServiceMessage
   case class GetManagedGroup(groupRef: ManagedGroupRef) extends UserServiceMessage
   case object ListManagedGroupsForUser extends UserServiceMessage
+  case class RequestAccessToManagedGroup(groupRef: ManagedGroupRef) extends UserServiceMessage
   case class AddManagedGroupMembers(groupRef: ManagedGroupRef, role: ManagedRole, email: String) extends UserServiceMessage
   case class RemoveManagedGroupMembers(groupRef: ManagedGroupRef, role: ManagedRole, email: String) extends UserServiceMessage
   case class OverwriteManagedGroupMembers(groupRef: ManagedGroupRef, role: ManagedRole, memberList: RawlsGroupMemberList) extends UserServiceMessage
@@ -137,6 +138,7 @@ class UserService(protected val userInfo: UserInfo, val dataSource: SlickDataSou
     case CreateManagedGroup(groupRef) => createManagedGroup(groupRef) pipeTo sender
     case GetManagedGroup(groupRef) => getManagedGroup(groupRef) pipeTo sender
     case ListManagedGroupsForUser => listManagedGroupsForUser pipeTo sender
+    case RequestAccessToManagedGroup(groupRef) => requestAccessToManagedGroup(groupRef) pipeTo sender
     case AddManagedGroupMembers(groupRef, role, email) => addManagedGroupMembers(groupRef, role, email) pipeTo sender
     case RemoveManagedGroupMembers(groupRef, role, email) => removeManagedGroupMembers(groupRef, role, email) pipeTo sender
     case OverwriteManagedGroupMembers(groupRef, role, memberList) => overwriteManagedGroupMembers(groupRef, role, memberList) pipeTo sender
@@ -628,6 +630,12 @@ class UserService(protected val userInfo: UserInfo, val dataSource: SlickDataSou
     dataSource.inTransaction { dataAccess =>
       dataAccess.managedGroupQuery.listManagedGroupsForUser(RawlsUserRef(RawlsUserSubjectId(userInfo.userSubjectId))).map(RequestComplete(StatusCodes.OK, _))
     }
+  }
+
+  def requestAccessToManagedGroup(groupRef: ManagedGroupRef): Future[PerRequestMessage] = {
+    
+
+    Future.successful(null)
   }
 
   def addManagedGroupMembers(groupRef: ManagedGroupRef, role: ManagedRole, email: String): Future[PerRequestMessage] = {

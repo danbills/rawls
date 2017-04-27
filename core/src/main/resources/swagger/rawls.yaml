@@ -3716,6 +3716,38 @@ paths:
             - openid
             - email
             - profile
+  '/api/groups/{groupName}/requestAccess':
+    get:
+      responses:
+        204:
+          description: Successfully requested access to group
+        403:
+          description: You must be an owner of this group in order to view members
+          schema:
+            $ref: '#/definitions/ErrorReport'
+        404:
+          description: Group not found
+          schema:
+            $ref: '#/definitions/ErrorReport'
+        500:
+          description: FireCloud Internal Error
+          schema:
+            $ref: '#/definitions/ErrorReport'
+      parameters:
+        - in: path
+          description: Group name
+          name: groupName
+          required: true
+          type: string
+      tags:
+        - groups
+      summary: request access to a group
+      operationId: requestGroupAccess
+      security:
+        - authorization:
+            - openid
+            - email
+            - profile
   '/api/groups/{groupName}/{role}/{email}':
     put:
       responses:
