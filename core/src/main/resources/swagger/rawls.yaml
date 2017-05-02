@@ -3717,7 +3717,7 @@ paths:
             - email
             - profile
   '/api/groups/{groupName}/requestAccess':
-    get:
+    post:
       responses:
         204:
           description: Successfully requested access to group
