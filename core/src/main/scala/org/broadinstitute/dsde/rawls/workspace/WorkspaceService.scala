@@ -127,12 +127,12 @@ object WorkspaceService {
 }
 
 class WorkspaceService(protected val userInfo: UserInfo, val dataSource: SlickDataSource, val methodRepoDAO: MethodRepoDAO, executionServiceCluster: ExecutionServiceCluster, execServiceBatchSize: Int, protected val gcsDAO: GoogleServicesDAO, notificationDAO: NotificationDAO, submissionSupervisor: ActorRef, bucketDeletionMonitor: ActorRef, userServiceConstructor: UserInfo => UserService)(implicit protected val executionContext: ExecutionContext) extends Actor with RoleSupport with LibraryPermissionsSupport with FutureSupport with MethodWiths with UserWiths with LazyLogging {
-  import dataSource.dataAccess.driver.api._
+      import dataSource.dataAccess.driver.api._
 
-  implicit val timeout = Timeout(5 minutes)
+      implicit val timeout = Timeout(5 minutes)
 
-  override def receive = {
-    case CreateWorkspace(workspace) => pipe(createWorkspace(workspace)) to sender
+      override def receive = {
+      case CreateWorkspace(workspace) => pipe(createWorkspace(workspace)) to sender
     case GetWorkspace(workspaceName) => pipe(getWorkspace(workspaceName)) to sender
     case DeleteWorkspace(workspaceName) => pipe(deleteWorkspace(workspaceName)) to sender
     case UpdateWorkspace(workspaceName, operations) => pipe(updateWorkspace(workspaceName, operations)) to sender

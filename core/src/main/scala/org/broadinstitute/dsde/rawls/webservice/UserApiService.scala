@@ -118,7 +118,7 @@ trait UserApiService extends HttpService with PerRequestCreator with UserInfoDir
           post {
             requestContext => perRequest(requestContext,
               UserService.props(userServiceConstructor, userInfo),
-              UserService.RequestAccessToManagedGroup)
+              UserService.RequestAccessToManagedGroup(groupRef))
           }
         } ~
         pathEnd {

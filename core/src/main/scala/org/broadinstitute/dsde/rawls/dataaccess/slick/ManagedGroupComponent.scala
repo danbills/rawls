@@ -9,7 +9,7 @@ import org.broadinstitute.dsde.rawls.model._
  *
  * Created by dvoet on 3/8/17.
  */
-case class ManagedGroupRecord(usersGroupName: String, ownersGroupName: String)
+case class ManagedGroupRecord(usersGroupName: String, ownersGroupName: String, accessInstructions: Option[String] = None)
 
 trait ManagedGroupComponent {
   this: DriverComponent
@@ -20,8 +20,9 @@ trait ManagedGroupComponent {
   class ManagedGroupTable(tag: Tag) extends Table[ManagedGroupRecord](tag, "MANAGED_GROUP") {
     def usersGroupName = column[String]("USERS_GROUP_NAME", O.Length(254), O.PrimaryKey)
     def ownersGroupName = column[String]("OWNERS_GROUP_NAME", O.Length(254))
+    def accessInstructions = column[Option[String]]("ACCESS_INSTRUCTIONS")
 
-    def * = (usersGroupName, ownersGroupName) <> (ManagedGroupRecord.tupled, ManagedGroupRecord.unapply)
+    def * = (usersGroupName, ownersGroupName, accessInstructions) <> (ManagedGroupRecord.tupled, ManagedGroupRecord.unapply)
 
     def usersGroup = foreignKey("FK_MANAGED_GROUP_USERS", usersGroupName, rawlsGroupQuery)(_.groupName)
     def ownersGroup = foreignKey("FK_MANAGED_GROUP_OWNERS", ownersGroupName, rawlsGroupQuery)(_.groupName)

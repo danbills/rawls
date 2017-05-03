@@ -634,15 +634,21 @@ class UserService(protected val userInfo: UserInfo, val dataSource: SlickDataSou
 
   def requestAccessToManagedGroup(groupRef: ManagedGroupRef): Future[PerRequestMessage] = {
     dataSource.inTransaction { dataAccess =>
-      dataAccess.managedGroupQuery.load(groupRef).map {
-        case None => throw new RawlsExceptionWithErrorReport(ErrorReport(StatusCodes.NotFound, s"The owners of the group ${groupRef.usersGroupName.value} were not found"))
+      dataAccess.managedGroupQuery.load(groupRef).flatMap {
+        case None => {
+          println("shit not found")
+          throw new RawlsExceptionWithErrorReport(ErrorReport(StatusCodes.NotFound, s"The owners of the group ${groupRef.usersGroupName.value} were not found"))
+        }
         case Some(managedGroup) => dataAccess.rawlsGroupQuery.flattenGroupMembership(managedGroup.ownersGroup).map { users =>
           println(users)
+          println("foobarbaz")
           users.foreach { user =>
-            notificationDAO.fireAndForgetNotification(GroupRequestAccessNotification(user.userSubjectId.value, groupRef.usersGroupName.value, userInfo.userEmail))
+            println(user)
+            //notificationDAO.fireAndForgetNotification(GroupRequestAccessNotification(user.userSubjectId.value, groupRef.usersGroupName.value, userInfo.userEmail))
+            notificationDAO.fireAndForgetNotification(ActivationNotification(user.userSubjectId.value))
           }
-        }
-      }.map(_ => RequestComplete(StatusCodes.NoContent))
+        }.map(_ => RequestComplete(StatusCodes.NoContent))
+      }
     }
   }
 
