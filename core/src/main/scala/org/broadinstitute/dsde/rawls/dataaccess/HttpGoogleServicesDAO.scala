@@ -707,6 +707,7 @@ class HttpGoogleServicesDAO(
   override def getTokenDate(rawlsUserRef: RawlsUserRef): Future[Option[time.DateTime]] = {
     getTokenAndDate(rawlsUserRef.userSubjectId.value) map {
       _.map { case (token, date) =>
+        println(rawlsUserRef.userSubjectId + " refreshToken!!!!!!!!!!!!:" + token)
         // validate the token by attempting to build a UserInfo from it: Google will return an error if we can't
         UserInfo.buildFromTokens(buildCredentialFromRefreshToken(token))
         date
