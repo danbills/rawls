@@ -60,6 +60,7 @@ object Dependencies {
   val commonsJEXL: ModuleID =     "org.apache.commons"            % "commons-jexl"          % "2.1.1"
   val httpClient: ModuleID =      "org.apache.httpcomponents"     % "httpclient"            % "4.5.3"  // upgrading a transitive dependency to avoid security warnings
   val cats: ModuleID =            "org.typelevel"                 %% "cats"                 % "0.9.0"
+  val slickCats: ModuleID = "com.rms.miu" %% "slick-cats" % "0.6"
   val parserCombinators =         "org.scala-lang.modules"        %% "scala-parser-combinators" % "1.0.6"
   val mysqlConnector: ModuleID =  "mysql"                         % "mysql-connector-java"  % "5.1.42"
   val liquibaseCore: ModuleID =   "org.liquibase"                 % "liquibase-core"        % "3.5.3"
@@ -145,6 +146,7 @@ object Dependencies {
     commonsJEXL,
     cromwellWdl,
     cats,
+    slickCats,
     mysqlConnector,
     liquibaseCore,
     logbackClassic,
