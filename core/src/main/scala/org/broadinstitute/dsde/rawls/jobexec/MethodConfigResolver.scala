@@ -12,6 +12,10 @@ import wom.types.{WomArrayType, WomOptionalType}
 import wdl.{FullyQualifiedName, WdlNamespaceWithWorkflow, WdlWorkflow}
 import wdl.WdlNamespace.httpResolver
 
+import cats.syntax.traverse._
+import cats.instances.list._
+import com.rms.miu.slickcats.DBIOInstances._
+
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.util.{Failure, Success, Try}
@@ -38,7 +42,7 @@ object MethodConfigResolver {
       case Seq() => Future.successful(SubmissionValidationValue(None, handleEmpty, inputName))
       case Seq(null) => Future.successful(SubmissionValidationValue(None, handleEmpty, inputName))
       case Seq(AttributeNull) => Future.successful(SubmissionValidationValue(None, handleEmpty, inputName))
-      case Seq(singleValue) => mapDosToGs(singleValue, marthaDAO) map { v => SubmissionValidationValue(Some(v), None, inputName) }
+      case Seq(singleValue) => mapDosToGs(singleValue, marthaDAO) map { v: Attribute => SubmissionValidationValue(Some(v), None, inputName) }
       case multipleValues => mapDosToGs(multipleValues, marthaDAO) map { vs => SubmissionValidationValue(Some(AttributeValueList(vs)), Some(multipleResultError), inputName) }
     }
   }
@@ -58,7 +62,8 @@ object MethodConfigResolver {
     attr map { a => SubmissionValidationValue(a, None, inputName) }
   }
 
-  private def unpackResult(mcSequence: Iterable[AttributeValue], wfInput: InputDefinition, marthaDAO: MarthaDAO)(implicit executionContext: ExecutionContext): Future[SubmissionValidationValue] = wfInput.womType match {
+  private def unpackResult(mcSequence: Iterable[AttributeValue], wfInput: InputDefinition, marthaDAO: MarthaDAO)
+                          (implicit executionContext: ExecutionContext): Future[SubmissionValidationValue] = wfInput.womType match {
     case arrayType: WomArrayType => getArrayResult(wfInput.localName.value, mcSequence, marthaDAO)
     case WomOptionalType(_:WomArrayType) => getArrayResult(wfInput.localName.value, mcSequence, marthaDAO) //send optional-arrays down the same codepath as arrays
     case _ => getSingleResult(wfInput.localName.value, mcSequence, wfInput.optional, marthaDAO)
@@ -98,8 +103,10 @@ object MethodConfigResolver {
     for ((name, expression) <- methodConfig.inputs.toSeq) yield MethodInput(agoraInputs(name), expression.value)
   }
 
-  def evaluateInputExpressions(workspaceContext: SlickWorkspaceContext, inputs: Seq[MethodInput], entities: Seq[EntityRecord], dataAccess: DataAccess, marthaDAO: MarthaDAO)(implicit executionContext: ExecutionContext): ReadWriteAction[Map[String, Seq[SubmissionValidationValue]]] = {
+  def evaluateInputExpressions(workspaceContext: SlickWorkspaceContext, inputs: Seq[MethodInput], entities: Seq[EntityRecord], dataAccess: DataAccess, marthaDAO: MarthaDAO)
+                              (implicit executionContext: ExecutionContext): ReadWriteAction[Map[String, Seq[SubmissionValidationValue]]] = {
     import dataAccess.driver.api._
+    type X[A] = DBIOAction[A, NoStream, Effect]
 
     if( inputs.isEmpty ) {
       //no inputs to evaluate = just return an empty map back!
@@ -108,24 +115,37 @@ object MethodConfigResolver {
       ExpressionEvaluator.withNewExpressionEvaluator(dataAccess, entities) { evaluator =>
         //Evaluate the results per input and return a seq of DBIO[ Map(entity -> value) ], one per input
         val resultsByInput = inputs.map { input =>
-          evaluator.evalFinalAttribute(workspaceContext, input.expression).asTry.map { tryAttribsByEntity =>
-            val validationValuesByEntity: Seq[(String, SubmissionValidationValue)] = tryAttribsByEntity match {
+          val asTry: DBIOAction[Try[Map[String, Try[Iterable[AttributeValue]]]], NoStream, Effect.Read with Effect.Write] =
+            evaluator.evalFinalAttribute(workspaceContext, input.expression).asTry
+          val value: X[List[(String, SubmissionValidationValue)]] = asTry.flatMap { tryAttribsByEntity =>
+            val validationValuesByEntity: X[List[(String, SubmissionValidationValue)]] = tryAttribsByEntity match {
               case Failure(regret) =>
                 //The DBIOAction failed - this input expression was not evaluated. Make an error for each entity.
-                entities.map(e => (e.name, SubmissionValidationValue(None, Some(regret.getMessage), input.workflowInput.localName.value)))
-              case Success(attributeMap) =>
+                entities.toList.traverse[X, (String, SubmissionValidationValue)](e => DBIO.successful((e.name, SubmissionValidationValue(None, Some(regret.getMessage), input.workflowInput.localName.value))))
+              case Success(attributeMap: Map[String, Try[Iterable[AttributeValue]]]) =>
                 //The expression was evaluated, but that doesn't mean we got results...
-                attributeMap.map {
-                  case (key, Success(attrSeq)) => key -> Await.result(unpackResult(attrSeq.toSeq, input.workflowInput, marthaDAO), Duration.Inf)
-                  case (key, Failure(regret)) => key -> SubmissionValidationValue(None, Some(regret.getMessage), input.workflowInput.localName.value)
-                }.toSeq
+                attributeMap.toList.traverse[X, (String, SubmissionValidationValue)] {
+                  case (key, Success(attrSeq)) => DBIO.from(unpackResult(attrSeq.toSeq, input.workflowInput, marthaDAO)) map {
+                    key -> _
+                  }
+                  case (key, Failure(regret)) => DBIO.successful(key -> SubmissionValidationValue(None, Some(regret.getMessage), input.workflowInput.localName.value))
+                }
             }
             validationValuesByEntity
+          }
+          value
+        }
+
+        val seq2: Seq[DBIOAction[Seq[(String, SubmissionValidationValue)], NoStream, Effect.Read with Effect.Write with Effect]] =
+          resultsByInput map { r =>
+          r.flatMap { seq =>
+            val eventualTuples: Future[Seq[(String, SubmissionValidationValue)]] = Future.sequence(seq)
+            DBIO.from(eventualTuples)
           }
         }
 
         //Flip the list of DBIO monads into one on the outside that we can map across and then group by entity.
-        DBIO.sequence(resultsByInput) map { results =>
+        DBIO.sequence(seq2) map { results =>
           CollectionUtils.groupByTuples(results.flatten)
         }
       }
