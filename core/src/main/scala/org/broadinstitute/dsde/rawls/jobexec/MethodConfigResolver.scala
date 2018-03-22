@@ -1,4 +1,5 @@
 package org.broadinstitute.dsde.rawls.jobexec
+import cats.Monad
 import org.broadinstitute.dsde.rawls.dataaccess.{MarthaDAO, SlickWorkspaceContext}
 import org.broadinstitute.dsde.rawls.dataaccess.slick._
 import org.broadinstitute.dsde.rawls.expressions.ExpressionEvaluator
@@ -11,9 +12,10 @@ import wom.callable.Callable.InputDefinition
 import wom.types.{WomArrayType, WomOptionalType}
 import wdl.{FullyQualifiedName, WdlNamespaceWithWorkflow, WdlWorkflow}
 import wdl.WdlNamespace.httpResolver
-
 import cats.syntax.traverse._
+import cats.syntax.foldable._
 import cats.instances.list._
+import cats.instances.map._
 import com.rms.miu.slickcats.DBIOInstances._
 
 import scala.concurrent.duration.Duration
@@ -106,7 +108,7 @@ object MethodConfigResolver {
   def evaluateInputExpressions(workspaceContext: SlickWorkspaceContext, inputs: Seq[MethodInput], entities: Seq[EntityRecord], dataAccess: DataAccess, marthaDAO: MarthaDAO)
                               (implicit executionContext: ExecutionContext): ReadWriteAction[Map[String, Seq[SubmissionValidationValue]]] = {
     import dataAccess.driver.api._
-    type X[A] = DBIOAction[A, NoStream, Effect]
+    import org.broadinstitute.dsde.rawls.dataaccess.slick._
 
     if( inputs.isEmpty ) {
       //no inputs to evaluate = just return an empty map back!
@@ -114,40 +116,30 @@ object MethodConfigResolver {
     } else {
       ExpressionEvaluator.withNewExpressionEvaluator(dataAccess, entities) { evaluator =>
         //Evaluate the results per input and return a seq of DBIO[ Map(entity -> value) ], one per input
-        val resultsByInput = inputs.map { input =>
-          val asTry: DBIOAction[Try[Map[String, Try[Iterable[AttributeValue]]]], NoStream, Effect.Read with Effect.Write] =
-            evaluator.evalFinalAttribute(workspaceContext, input.expression).asTry
-          val value: X[List[(String, SubmissionValidationValue)]] = asTry.flatMap { tryAttribsByEntity =>
-            val validationValuesByEntity: X[List[(String, SubmissionValidationValue)]] = tryAttribsByEntity match {
-              case Failure(regret) =>
-                //The DBIOAction failed - this input expression was not evaluated. Make an error for each entity.
-                entities.toList.traverse[X, (String, SubmissionValidationValue)](e => DBIO.successful((e.name, SubmissionValidationValue(None, Some(regret.getMessage), input.workflowInput.localName.value))))
-              case Success(attributeMap: Map[String, Try[Iterable[AttributeValue]]]) =>
-                //The expression was evaluated, but that doesn't mean we got results...
-                attributeMap.toList.traverse[X, (String, SubmissionValidationValue)] {
-                  case (key, Success(attrSeq)) => DBIO.from(unpackResult(attrSeq.toSeq, input.workflowInput, marthaDAO)) map {
-                    key -> _
-                  }
-                  case (key, Failure(regret)) => DBIO.successful(key -> SubmissionValidationValue(None, Some(regret.getMessage), input.workflowInput.localName.value))
+        val resultsByInput: ReadWriteAction[List[(String, SubmissionValidationValue)]] =
+          inputs.toList.flatTraverse[ReadWriteAction, (String, SubmissionValidationValue)] {
+            input =>
+              val asTry: DBIOAction[Try[Map[String, Try[Iterable[AttributeValue]]]], NoStream, Effect.Read with Effect.Write] =
+                evaluator.evalFinalAttribute(workspaceContext, input.expression).asTry
+              asTry.flatMap { tryAttribsByEntity =>
+                tryAttribsByEntity match {
+                  case Failure(regret) =>
+                    //The DBIOAction failed - this input expression was not evaluated. Make an error for each entity.
+                    entities.toList.traverse[ReadWriteAction, (String, SubmissionValidationValue)](e => DBIO.successful((e.name, SubmissionValidationValue(None, Some(regret.getMessage), input.workflowInput.localName.value))))
+                  case Success(attributeMap: Map[String, Try[Iterable[AttributeValue]]]) =>
+                    //The expression was evaluated, but that doesn't mean we got results...
+                    attributeMap.toList.traverse[ReadWriteAction, (String, SubmissionValidationValue)] {
+                      case (key, Success(attrSeq)) => DBIO.from(unpackResult(attrSeq.toSeq, input.workflowInput, marthaDAO)) map {
+                        key -> _
+                      }
+                      case (key, Failure(regret)) => DBIO.successful(key -> SubmissionValidationValue(None, Some(regret.getMessage), input.workflowInput.localName.value))
+                    }
                 }
-            }
-            validationValuesByEntity
+              }
           }
-          value
-        }
 
-        val seq2: Seq[DBIOAction[Seq[(String, SubmissionValidationValue)], NoStream, Effect.Read with Effect.Write with Effect]] =
-          resultsByInput map { r =>
-          r.flatMap { seq =>
-            val eventualTuples: Future[Seq[(String, SubmissionValidationValue)]] = Future.sequence(seq)
-            DBIO.from(eventualTuples)
-          }
-        }
-
-        //Flip the list of DBIO monads into one on the outside that we can map across and then group by entity.
-        DBIO.sequence(seq2) map { results =>
-          CollectionUtils.groupByTuples(results.flatten)
-        }
+        //group the results by key
+        resultsByInput.map(_.foldMap{case (string, value) => Map(string -> List(value))})
       }
     }
   }
